@@ -1,0 +1,53 @@
+{
+  "Bus Protection": {
+    "Protection 2": {
+      "description": "blah blah",
+      "Bay 1 SV and GOOSE": {
+        "tags": ["bus"],
+        "Components": {
+          "IEDS": {
+            "BZ": {
+              "originalName": "XAT_BusA_P2",
+              "desc": "Bus Protection 2",
+              "type": "7SS85",
+              "manufacturer": "SIEMENS",
+              "configVersion": "V09.71.01",
+              "privates": { "TP-Standard-Package-Version": "1.0.0" }
+            },
+            "MU Bay <n>": {
+              "count": 13,
+              "desc": "Merging Unit",
+              "type": "6MU85",
+              "manufacturer": "SIEMENS",
+              "configVersion": "V09.71.01"
+            }
+          },
+          "ControlBlocks": {
+            "identity(thing)": {
+              "From": "BZ",
+              "To": ["Bay 1", "Bay 2", "Bay 3", "Bay 4"],
+              "Mappings": [
+                { "FCDA": "Identity(FCDA)", "ExtRef": "Identity(Blah)" }
+              ],
+              "Supervision": "Identity(LN)"
+            },
+            "identity(otherthing)": {
+              "From": "Bay 1",
+              "To": "BZ",
+              "ControlBlock": "Ctl_1",
+              "Mappings": [{ "FCDA": "Blah", "ExtRef": "" }],
+              "Supervision": ""
+            },
+            "identity(otherthing)2": {
+              "From": "Bay 1",
+              "To": "BZ",
+              "ControlBlock": "SV",
+              "Mappings": [{ "FCDA": "Blah", "ExtRef": "" }],
+              "Supervision": ""
+            }
+          }
+        }
+      }
+    }
+  }
+}
