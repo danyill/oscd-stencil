@@ -5,6 +5,7 @@ import { property, query, queryAll } from 'lit/decorators.js';
 import '@material/mwc-tab-bar';
 
 import '@material/web/button/outlined-button.js';
+import '@material/web/button/filled-button.js';
 import '@material/web/button/text-button.js';
 import '@material/web/checkbox/checkbox.js';
 import '@material/web/dialog/dialog.js';
@@ -19,6 +20,8 @@ import type { TextField } from '@material/web/textfield/internal/text-field.js';
 import type { MdDialog } from '@material/web/dialog/dialog.js';
 import type { MdOutlinedTextField } from '@material/web/textfield/outlined-text-field.js';
 import type { SelectionList } from '@openenergytools/filterable-lists/dist/selection-list.js';
+
+import defaultStencil from './default_stencil.json' with { type: 'json' };
 
 import {
   ControlBlockInfo,
@@ -101,6 +104,29 @@ function* combinations<T>(array: T[], length: number): IterableIterator<T[]> {
 //   configVersion: string | null;
 // };
 
+// type ied = {
+//   [name: string]: {
+//     originalName: string;
+//     desc: string;
+//     type: string;
+//     manufacturer: string;
+//     configVersion: string;
+//   };
+// };
+
+// type stencilData = {
+//   description: string;
+//   version: string;
+//   applications: {
+//     [category: string]: {
+//       [name: string]: {
+//         description: string;
+//         IEDS: { [key: string]: ied };
+//       };
+//     };
+//   };
+// };
+
 /**
  * A plugin to allow templates of GOOSE and SV using the
  * later binding method based on a JSON description of a configuration.
@@ -115,9 +141,11 @@ export default class Stencil extends LitElement {
 
   @property() tabIndex: number = 0;
 
-  @property() stencilData: Map<string, ControlBlockInfo> = new Map();
+  @property() iedMappingStencilData: Map<string, ControlBlockInfo> = new Map();
 
   @property() uniqueIeds: string[] = [];
+
+  @property() stencilData: JSON;
 
   // items: SelectItem[] = [];
 
@@ -125,51 +153,78 @@ export default class Stencil extends LitElement {
 
   @query('#output') outputStencilUI!: TextField;
 
-  @query('#selection-dialog') iedSelector!: MdDialog;
+  @query('#appcat') appCategory!: TextField;
 
-  @query('#selection-list') selectionList!: SelectionList;
+  @query('#appname') appName!: TextField;
+
+  @query('#appdesc') appDesc!: TextField;
+
+  @query('#stendesc') stencilDesc!: TextField;
+
+  @query('#stenver') stencilVersion!: TextField;
+
+  @query('#selection-dialog') iedSelectorUI!: MdDialog;
+
+  @query('#selection-list') selectionListUI!: SelectionList;
+
+  @query('#changeStencil') changeStenciLUI!: HTMLInputElement;
 
   @queryAll('#function > md-outlined-text-field')
-  functionIedNames!: TextField[];
+  functionIedNamesUI!: TextField[];
+
+  constructor() {
+    super();
+    this.stencilData = defaultStencil;
+  }
 
   saveStencil() {
     // need to do some validation
 
     const iedNameMapping = new Map<string, string>();
-    this.functionIedNames.forEach(textField =>
+    this.functionIedNamesUI.forEach(textField =>
       iedNameMapping.set(textField.dataset.ied!, textField.value)
     );
 
-    console.log(iedNameMapping);
-
     const iedsJson = this.uniqueIeds.map(iedName => {
       const ied = this.doc.querySelector(`IED[name="${iedName}"]`)!;
-      return `{"${iedNameMapping.get(iedName)}": {
-          "originalName": "${ied.getAttribute('name')!}",
-          "desc": "${ied.getAttribute('desc')!}"
-          "type": "${ied.getAttribute('type')!}"
-          "manufacturer": "${ied.getAttribute('manufacturer')!}"
-          "configVersion": "${ied.getAttribute('configVersion')!}"
-       }}`;
+      return {
+        [iedNameMapping.get(iedName) ?? 'Unknown IED']: {
+          originalName: ied.getAttribute('name')!,
+          desc: ied.getAttribute('desc')!,
+          type: ied.getAttribute('type')!,
+          manufacturer: ied.getAttribute('manufacturer')!,
+          configVersion: ied.getAttribute('configVersion')!
+        }
+      };
     });
 
-    this.outputStencilUI.value = JSON.stringify({
-      App1: {
-        App2: {
-          description: '???',
-          IEDS: { ...iedsJson }
+    this.stencilData = {
+      description: this.stencilDesc.value,
+      version: this.stencilVersion.value,
+      applications: {
+        [this.appCategory.value ?? 'UnknownCategory']: {
+          [this.appName.value ?? 'UnknownName']: {
+            description: this.appDesc.value,
+            IEDS: iedsJson,
+            ControlBlocks: Object.fromEntries(
+              this.iedMappingStencilData.entries()
+            )
+          }
         }
       }
-    });
+    };
 
-    const outputText = this.outputStencilUI?.value ?? '';
+    const outputText = JSON.stringify(this.stencilData, null, 2);
 
     const blob = new Blob([outputText], {
       type: 'application/xml'
     });
 
     const a = document.createElement('a');
-    a.download = `Stencil.json`;
+    a.download = `${this.stencilDesc.value.replace(' ', '_')}_${
+      this.stencilVersion.value
+    }.json`;
+
     a.href = URL.createObjectURL(blob);
     a.dataset.downloadurl = ['application/json', a.download, a.href].join(':');
     a.style.display = 'none';
@@ -186,14 +241,14 @@ export default class Stencil extends LitElement {
 
   clearStencilCreateData(): void {
     this.uniqueIeds = [];
-    this.stencilData = new Map();
+    this.iedMappingStencilData = new Map();
   }
 
   clearIedSelection(): void {
-    if (this.selectionList) {
+    if (this.selectionListUI) {
       (
         Array.from(
-          this.selectionList.shadowRoot!.querySelectorAll(
+          this.selectionListUI.shadowRoot!.querySelectorAll(
             'md-list.listitems md-list-item md-checkbox'
           )
         ) as MdCheckbox[]
@@ -206,7 +261,7 @@ export default class Stencil extends LitElement {
         }
       });
 
-      const searchField = (this.selectionList.shadowRoot!.querySelector(
+      const searchField = (this.selectionListUI.shadowRoot!.querySelector(
         'md-outlined-text-field[placeholder="search"]'
       ) as MdOutlinedTextField)!;
       searchField.value = '';
@@ -214,8 +269,63 @@ export default class Stencil extends LitElement {
     }
   }
 
+  async loadStencil(event: Event): Promise<void> {
+    const file = (<HTMLInputElement | null>event.target)?.files?.item(0);
+    if (!file) return;
+
+    const text = await file.text();
+    this.stencilData = JSON.parse(text);
+
+    this.changeStenciLUI.onchange = null;
+  }
+
+  renderUse(): TemplateResult {
+    console.log(defaultStencil);
+    return html`
+      <div>
+        <h1 id="stencilName">
+          ${this.stencilData.description}<code id="stencilVersion"
+            >${defaultStencil.version}</code
+          >
+        </h1>
+        <span style="position: relative">
+          <md-filled-button
+            id="more"
+            @click=${() => {
+              this.changeStenciLUI.click();
+            }}
+            >Change Stencil
+            <md-icon slot="icon">file_open</md-icon>
+          </md-filled-button>
+        </span>
+      </div>
+
+      <h2>Select Application</h2>
+      <input
+        id="changeStencil"
+        @click=${({ target }: MouseEvent) => {
+          // eslint-disable-next-line no-param-reassign
+          (<HTMLInputElement>target).value = '';
+        }}
+        @change=${this.loadStencil}
+        type="file"
+      />
+    `;
+  }
+
   renderCreate(): TemplateResult {
     return html`
+      <h1>Enter Stencil Data</h1>
+      <div class="group appinf">
+        <md-outlined-text-field
+          id="stendesc"
+          label="Description"
+          value="Transpower Stencil"
+        >
+        </md-outlined-text-field>
+        <md-outlined-text-field id="stenver" label="Version" value="1.0.0">
+        </md-outlined-text-field>
+      </div>
       <h1>Enter Application Data</h1>
       <div class="group appinf">
         <md-outlined-text-field
@@ -240,7 +350,7 @@ export default class Stencil extends LitElement {
       <div class="group">
         <md-outlined-button
           class="button"
-          @click=${() => this.iedSelector.show()}
+          @click=${() => this.iedSelectorUI.show()}
           >Add IEDs
           <md-icon slot="icon">developer_board</md-icon>
         </md-outlined-button>
@@ -265,6 +375,7 @@ export default class Stencil extends LitElement {
           id="output"
           type="textarea"
           label="Stencil Output File"
+          value="${this.stencilData}"
           rows="10"
         >
         </md-outlined-text-field>
@@ -274,11 +385,6 @@ export default class Stencil extends LitElement {
         </md-outlined-button>
       </div>
     `;
-  }
-
-  // eslint-disable-next-line class-methods-use-this
-  renderApplications(): TemplateResult {
-    return html`<h1>Select Application</h1>`;
   }
 
   renderIedSelector(): TemplateResult {
@@ -310,29 +416,33 @@ export default class Stencil extends LitElement {
       <div slot="actions">
         <md-text-button
           @click="${() => {
-            this.iedSelector.close();
+            this.iedSelectorUI.close();
             this.clearIedSelection();
           }}"
           >Cancel</md-text-button
         >
         <md-text-button
           @click="${() => {
-            const ieds: Element[] = this.selectionList.selectedElements;
+            const ieds: Element[] = this.selectionListUI.selectedElements;
             this.clearIedSelection();
 
             const iedNames = ieds.map(ied => ied.getAttribute('name'));
 
             const iedCombinations = Array.from(combinations(iedNames, 2));
 
-            this.stencilData = new Map();
+            this.iedMappingStencilData = new Map();
             iedCombinations.forEach(iedPairs => {
               // A to B
               const aDir = getMappingInfo(this.doc, iedPairs[0]!, iedPairs[1]!);
-              aDir.forEach((value, key) => this.stencilData.set(key, value));
+              aDir.forEach((value, key) =>
+                this.iedMappingStencilData.set(key, value)
+              );
               // B to A
 
               const bDir = getMappingInfo(this.doc, iedPairs[1]!, iedPairs[0]!);
-              bDir.forEach((value, key) => this.stencilData.set(key, value));
+              bDir.forEach((value, key) =>
+                this.iedMappingStencilData.set(key, value)
+              );
 
               Array.from(aDir.values()).forEach((val: ControlBlockInfo) => {
                 if (!this.uniqueIeds.includes(val.to))
@@ -368,11 +478,11 @@ export default class Stencil extends LitElement {
           this.tabIndex = index;
         }}
       >
-        <mwc-tab label="Use" icon="start" default stacked></mwc-tab>
+        <mwc-tab label="Use" icon="stadia_controller" default stacked></mwc-tab>
         <mwc-tab label="Create" icon="construction" stacked></mwc-tab>
       </mwc-tab-bar>
       <section>
-        ${this.tabIndex === 0 ? this.renderApplications() : this.renderCreate()}
+        ${this.tabIndex === 0 ? this.renderUse() : this.renderCreate()}
       </section>
       ${this.renderIedSelector()}`;
   }
@@ -408,9 +518,22 @@ export default class Stencil extends LitElement {
       margin-top: 20px;
     }
 
+    #stencilName {
+      width: 100%;
+    }
+
     #appname,
-    #appdesc {
+    #appdesc,
+    #stendesc {
       width: 400px;
+    }
+
+    #stencilVersion {
+      padding: 10px;
+    }
+
+    #changeStencil {
+      display: none;
     }
 
     .iedfunction {
@@ -435,65 +558,3 @@ export default class Stencil extends LitElement {
     }
   `;
 }
-
-// const iedNameToType = new Map<string, IedInfo>();
-// Array.from(this.doc.querySelectorAll(':root > IED')).forEach(ied => {
-//   const name = ied.getAttribute('name')!;
-//   const type = ied.getAttribute('type');
-//   const desc = ied.getAttribute('desc');
-//   const manufacturer = ied.getAttribute('manufacturer');
-//   const configVersion = ied.getAttribute('configVersion');
-//   iedNameToType.set(name, {
-//     desc,
-//     type,
-//     manufacturer,
-//     configVersion
-//   });
-// });
-// const ieds = Array.from(this.doc.querySelectorAll('IED')).filter(ied => {
-//   const iedName = ied.getAttribute('name')!;
-//   return [iedFrom].includes(iedNameToType.get(iedName)?.type ?? 'Unknown');
-// });
-
-// const iedInfo = new Map<string,ControlBlockInfo[]>();
-// ieds.forEach(ied => {
-//   const iedName = ied.getAttribute('name');
-
-//   Array.from(ied.querySelectorAll(':scope Inputs > ExtRef'))
-
-//     .filter(extref => {
-//       const iedName = extref.getAttribute('iedName');
-//       return (
-//         iedName &&
-//         [iedFrom].includes(iedName ?? 'Unknown') &&
-//         isPublic(extref)
-//       );
-//     })
-//     .forEach((extref: Element) => {
-
-//       const ctrl = identity(sourceControlBlock(extref))
-//       const data = {
-//         from: iedName,
-//         to: extref.getAttribute('iedName') ?? 'Unknown',
-//       }
-//       iedInfo.set(iedName)
-//       console.log(identity(extref), );
-//     });
-
-// });
-
-// getData(): void {
-//   if (!this.doc) return;
-
-//   const fromName = 'XAT_BusA_P2';
-//   const toName = 'XAT_232_MU2';
-
-//   const cbMappings = getMappingInfo(this.doc, fromName, toName);
-//   const cbMappings2 = getMappingInfo(this.doc, toName, fromName);
-// }
-
-// protected firstUpdated(): void {
-//   this.addEventListener('MDCTabBar:activated', event => {
-//     console.log(event);
-//   });
-// }
