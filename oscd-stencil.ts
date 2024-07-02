@@ -1,18 +1,22 @@
-import { css, html, LitElement, TemplateResult } from 'lit';
+import { css, html, LitElement, nothing, TemplateResult } from 'lit';
 
 import { property, query, queryAll } from 'lit/decorators.js';
 
 import '@material/mwc-tab-bar';
-
 import '@material/web/button/outlined-button.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/button/text-button.js';
 import '@material/web/checkbox/checkbox.js';
 import '@material/web/dialog/dialog.js';
+import '@material/web/list/list.js';
+import '@material/web/list/list-item.js';
+import '@material/web/iconbutton/icon-button.js';
+import '@material/web/menu/menu.js';
 
 import '@material/web/icon/icon.js';
 
 import '@openenergytools/filterable-lists/dist/selection-list.js';
+import '@openenergytools/filterable-lists/dist/action-list.js';
 
 import type { MdCheckbox } from '@material/web/checkbox/checkbox.js';
 import type { TabBar } from '@material/mwc-tab-bar';
@@ -20,6 +24,8 @@ import type { TextField } from '@material/web/textfield/internal/text-field.js';
 import type { MdDialog } from '@material/web/dialog/dialog.js';
 import type { MdOutlinedTextField } from '@material/web/textfield/outlined-text-field.js';
 import type { SelectionList } from '@openenergytools/filterable-lists/dist/selection-list.js';
+import type { MdIconButton } from '@material/web/iconbutton/icon-button.js';
+import type { MdMenu } from '@material/web/menu/menu';
 
 import defaultStencil from './default_stencil.json' with { type: 'json' };
 
@@ -27,105 +33,38 @@ import {
   ControlBlockInfo,
   getMappingInfo
 } from './foundation/getMappingInfo.js';
+import { combinations } from './combinations.js';
+import { getIedDescription } from './getIedDescription.js';
 
-function getIedDescription(ied: Element): {
-  firstLine: string;
-  secondLine: string;
-} {
-  const [
-    manufacturer,
-    type,
-    desc,
-    configVersion,
-    originalSclVersion,
-    originalSclRevision,
-    originalSclRelease
-  ] = [
-    'manufacturer',
-    'type',
-    'desc',
-    'configVersion',
-    'originalSclVersion',
-    'originalSclRevision',
-    'originalSclRelease'
-  ].map(attr => ied?.getAttribute(attr));
+type IED = {
+  originalName: string;
+  desc: string;
+  type: string;
+  manufacturer: string;
+  configVersion: string;
+};
 
-  const firstLine = [manufacturer, type]
-    .filter(val => val !== null)
-    .join(' - ');
+type Application = {
+  deprecated: boolean;
+  IEDS: Record<string, IED>;
+  ControlBlocks: Record<string, ControlBlockInfo>;
+};
 
-  const schemaInformation = [
-    originalSclVersion,
-    originalSclRevision,
-    originalSclRelease
-  ]
-    .filter(val => val !== null)
-    .join('');
+type VersionedApplications = {
+  description: string;
+  versions: Record<string, VersionedApplications>;
+};
 
-  const secondLine = [desc, configVersion, schemaInformation]
-    .filter(val => val !== null)
-    .join(' - ');
+type StencilData = {
+  description: string;
+  version: string;
+  applications: Record<string, VersionedApplications>;
+};
 
-  return { firstLine, secondLine };
-}
-
-// from https://stackoverflow.com/questions/43241174/javascript-generating-all-combinations-of-elements-in-a-single-array-in-pairs
-function* combinations<T>(array: T[], length: number): IterableIterator<T[]> {
-  for (let i = 0; i < array.length; i += 1) {
-    if (length === 1) {
-      yield [array[i]];
-    } else {
-      const remaining = combinations(
-        array.slice(i + 1, array.length),
-        length - 1
-      );
-      for (const next of remaining) {
-        yield [array[i], ...next];
-      }
-    }
-  }
-}
-
-// not exported: removeSubscriptionSupervision
-
-// import '@material/mwc-fab';
-// import '@material/mwc-icon';
-// import '@material/mwc-icon-button-toggle';
-// import '@material/mwc-list';
-// import '@material/mwc-list/mwc-list-item';
-// import '@material/mwc-list/mwc-check-list-item';
-// import '@material/mwc-list/mwc-radio-list-item';
-// import '@material/mwc-menu';
-
-// type IedInfo = {
-//   desc: string | null;
-//   type: string | null;
-//   manufacturer: string | null;
-//   configVersion: string | null;
-// };
-
-// type ied = {
-//   [name: string]: {
-//     originalName: string;
-//     desc: string;
-//     type: string;
-//     manufacturer: string;
-//     configVersion: string;
-//   };
-// };
-
-// type stencilData = {
-//   description: string;
-//   version: string;
-//   applications: {
-//     [category: string]: {
-//       [name: string]: {
-//         description: string;
-//         IEDS: { [key: string]: ied };
-//       };
-//     };
-//   };
-// };
+type SelectedApplication = {
+  appCategory: string;
+  appName: string;
+};
 
 /**
  * A plugin to allow templates of GOOSE and SV using the
@@ -145,7 +84,21 @@ export default class Stencil extends LitElement {
 
   @property() uniqueIeds: string[] = [];
 
-  @property() stencilData: JSON;
+  @property() stencilData: StencilData;
+
+  @property() selectedApplication: SelectedApplication | null = null;
+
+  @property() applicationSelectedIed: Element | null = null;
+
+  @property() applicationSelectedFunction: string | null = null;
+
+  @property() applicationSelectedFunctionReqs: IED | null = null;
+
+  @property() functionToIed: Map<string, string> = new Map();
+
+  @property() createEventListeners: boolean = false;
+
+  @property() showDeprecated: boolean = false;
 
   // items: SelectItem[] = [];
 
@@ -159,15 +112,25 @@ export default class Stencil extends LitElement {
 
   @query('#appdesc') appDesc!: TextField;
 
+  @query('#appver') appVer!: TextField;
+
+  @query('#appdeprecated') appDeprecated!: MdCheckbox;
+
   @query('#stendesc') stencilDesc!: TextField;
 
   @query('#stenver') stencilVersion!: TextField;
 
-  @query('#selection-dialog') iedSelectorUI!: MdDialog;
+  @query('#selection-dialog') iedTemplateSelectorUI!: MdDialog;
+
+  @query('#ied-function-selector-dialog') iedSelectorUI!: MdDialog;
 
   @query('#selection-list') selectionListUI!: SelectionList;
 
   @query('#changeStencil') changeStenciLUI!: HTMLInputElement;
+
+  @query('#menuApplicationsButton') menuAppButtonUI!: MdIconButton;
+
+  @query('#menuApplications') menuAppUI!: MdMenu;
 
   @queryAll('#function > md-outlined-text-field')
   functionIedNamesUI!: TextField[];
@@ -185,17 +148,16 @@ export default class Stencil extends LitElement {
       iedNameMapping.set(textField.dataset.ied!, textField.value)
     );
 
-    const iedsJson = this.uniqueIeds.map(iedName => {
+    const ieds = new Map<string, IED>();
+    this.uniqueIeds.forEach(iedName => {
       const ied = this.doc.querySelector(`IED[name="${iedName}"]`)!;
-      return {
-        [iedNameMapping.get(iedName) ?? 'Unknown IED']: {
-          originalName: ied.getAttribute('name')!,
-          desc: ied.getAttribute('desc')!,
-          type: ied.getAttribute('type')!,
-          manufacturer: ied.getAttribute('manufacturer')!,
-          configVersion: ied.getAttribute('configVersion')!
-        }
-      };
+      ieds.set(iedNameMapping.get(iedName) ?? 'Unknown IED', {
+        originalName: ied.getAttribute('name')!,
+        desc: ied.getAttribute('desc')!,
+        type: ied.getAttribute('type')!,
+        manufacturer: ied.getAttribute('manufacturer')!,
+        configVersion: ied.getAttribute('configVersion')!
+      });
     });
 
     this.stencilData = {
@@ -204,8 +166,10 @@ export default class Stencil extends LitElement {
       applications: {
         [this.appCategory.value ?? 'UnknownCategory']: {
           [this.appName.value ?? 'UnknownName']: {
+            version: this.appVer.value,
+            deprecated: this.appDeprecated.checked,
             description: this.appDesc.value,
-            IEDS: iedsJson,
+            IEDS: Object.fromEntries(ieds),
             ControlBlocks: Object.fromEntries(
               this.iedMappingStencilData.entries()
             )
@@ -215,6 +179,7 @@ export default class Stencil extends LitElement {
     };
 
     const outputText = JSON.stringify(this.stencilData, null, 2);
+    this.outputStencilUI.value = outputText;
 
     const blob = new Blob([outputText], {
       type: 'application/xml'
@@ -244,7 +209,7 @@ export default class Stencil extends LitElement {
     this.iedMappingStencilData = new Map();
   }
 
-  clearIedSelection(): void {
+  clearIedTemplateSelection(): void {
     if (this.selectionListUI) {
       (
         Array.from(
@@ -279,28 +244,269 @@ export default class Stencil extends LitElement {
     this.changeStenciLUI.onchange = null;
   }
 
+  // eslint-disable-next-line class-methods-use-this
+  applyStencil() {
+    throw new Error('Method not implemented.');
+  }
+
+  updated(): void {
+    if (this.menuAppButtonUI && !this.createEventListeners) {
+      this.createEventListeners = true;
+      this.menuAppButtonUI.addEventListener('click', () => {
+        this.menuAppUI.open = !this.menuAppUI.open;
+      });
+    }
+  }
+
+  protected firstUpdated(): void {
+    this.iedSelectorUI.addEventListener('close', () => {
+      if (this.applicationSelectedFunction && this.applicationSelectedIed) {
+        const iedName = this.applicationSelectedIed.getAttribute('name')!;
+        this.functionToIed.set(this.applicationSelectedFunction, iedName);
+      }
+      if (
+        this.applicationSelectedFunction &&
+        this.iedSelectorUI.returnValue === 'reset'
+      ) {
+        this.functionToIed.delete(this.applicationSelectedFunction);
+      }
+      this.applicationSelectedFunction = null;
+      this.applicationSelectedIed = null;
+      this.applicationSelectedFunctionReqs = null;
+    });
+  }
+
+  renderFunctionIedSelector(): TemplateResult {
+    return html`<md-dialog
+      id="ied-function-selector-dialog"
+      @cancel=${(event: Event) => {
+        event.preventDefault();
+      }}
+    >
+      <div slot="headline">
+        Select IED for function - ${this.applicationSelectedFunction}
+      </div>
+      <form slot="content" id="ied-selection" method="dialog">
+        <action-list
+          id="action-list"
+          filterable
+          .items=${Array.from(this.doc?.querySelectorAll('IED') ?? []).map(
+            ied => {
+              const { firstLine, secondLine } = getIedDescription(ied);
+
+              return {
+                headline: `${ied.getAttribute('name')!} — ${firstLine}`,
+                supportingText: secondLine,
+                attachedElement: ied,
+                primaryAction: () => {
+                  this.applicationSelectedIed = ied;
+                  this.iedSelectorUI.returnValue = 'ok';
+                  this.iedSelectorUI.close();
+                }
+              };
+            }
+          )}
+        ></action-list>
+      </form>
+      <div slot="actions">
+        <md-text-button
+          form="ied-selection"
+          value="reset"
+          @click="${() => {
+            this.iedSelectorUI.returnValue = 'reset';
+            this.iedSelectorUI.close();
+          }}"
+          >Reset</md-text-button
+        >
+      </div></md-dialog
+    >`;
+  }
+
+  renderIedsForUse(): TemplateResult {
+    const currentApplication = this.selectedApplication
+      ? this.stencilData.applications[this.selectedApplication.appCategory][
+          this.selectedApplication.appName
+        ]
+      : null;
+
+    return html`${
+      this.selectedApplication
+        ? html`<div>
+            <h2>${this.selectedApplication.appCategory}</h2>
+            <div style="padding-left:30px;">
+              <h3>${this.selectedApplication.appName}</h3>
+              <p>${currentApplication?.description}</p>
+            </div>
+            <h2>Select IEDs for Function</h2>
+            <md-list id="iedsAndFunctions">
+              ${Object.keys(currentApplication!.IEDS).map(iedFunction => {
+                const ied = currentApplication!.IEDS[iedFunction];
+
+                return html`
+                  <md-list-item
+                    type="button"
+                    @click=${(event: Event) => {
+                      console.log(ied);
+                      console.log(event);
+
+                      this.applicationSelectedFunction = iedFunction;
+                      this.applicationSelectedFunctionReqs = ied;
+                      // = (<HTMLElement>event.target).closest('md-list-item')
+
+                      this.iedSelectorUI.show();
+                    }}
+                  >
+                    <div slot="headline">
+                      ${iedFunction}${this.functionToIed.get(iedFunction)
+                        ? `  ⮕  ${this.functionToIed.get(iedFunction)}`
+                        : nothing}
+                    </div>
+                    <div slot="supporting-text">
+                      ${ied.manufacturer} - ${ied.type}
+                    </div>
+                    <md-icon slot="start">developer_board</md-icon>
+                    <md-icon slot="end"
+                      >${this.functionToIed.get(iedFunction) !== undefined
+                        ? 'check_box'
+                        : 'check_box_outline_blank'}</md-icon
+                    >
+                  </md-list-item>
+                `;
+              })}
+            </md-list>
+            <md-outlined-button
+              class="button"
+              ?disabled=${this.functionToIed.size === 0}
+              @click=${() => {
+                this.functionToIed = new Map<string, string>();
+              }}
+              >Clear IEDs
+              <md-icon slot="icon">cancel</md-icon>
+            </md-outlined-button>
+            <md-filled-button
+              class="button"
+              ?disabled=${this.functionToIed.size === 0}
+              @click=${() => this.applyStencil()}
+              >Apply Stencil
+              <md-icon slot="icon">draw_collage</md-icon>
+            </md-filled-button>
+          </div> `
+        : nothing
+    }
+  </div>`;
+  }
+
   renderUse(): TemplateResult {
-    console.log(defaultStencil);
+    if (!this.doc)
+      return html`<h1>Please open a file to use this functionality</h1>`;
+
+    const appCategories: TemplateResult[] = [];
+    Object.keys(this.stencilData.applications)
+      .filter(
+        appCat =>
+          this.stencilData.applications[appCat].some(
+            (app: Application) => app.deprecated
+          )
+        // return true;
+      )
+      .forEach(appCategory => {
+        appCategories.push(html`
+          <md-list-item data-cat="${appCategory}">
+            <div slot="headline">${appCategory}</div>
+            <md-icon slot="start">ad_group</md-icon>
+          </md-list-item>
+        `);
+
+        Object.keys(this.stencilData.applications[appCategory]).forEach(
+          appName => {
+            appCategories.push(html`
+              <md-list-item
+                @click=${(event: Event) => {
+                  this.selectedApplication = { appCategory, appName };
+                  (<HTMLElement>event.target)
+                    .closest('md-list')!
+                    .querySelectorAll('md-list-item')
+                    .forEach(listItem => {
+                      listItem.classList.remove('selected');
+                    });
+
+                  (<HTMLElement>event.target)
+                    .closest('md-list-item')
+                    ?.classList.add('selected');
+                }}
+                type="button"
+                data-cat="${appCategory}"
+                data-name="${appName}"
+              >
+                <div slot="headline">${appName}</div>
+                <div slot="supporting-text">
+                  ${this.stencilData.applications[appCategory][appName]
+                    .description}
+                </div>
+                <div slot="trailing-supporting-text">
+                  ${this.stencilData.applications[appCategory][appName].version}
+                </div>
+                <md-icon slot="start">draw_collage</md-icon>
+              </md-list-item>
+            `);
+          }
+        );
+      });
+
     return html`
-      <div>
+      <div id="headline">
         <h1 id="stencilName">
           ${this.stencilData.description}<code id="stencilVersion"
             >${defaultStencil.version}</code
           >
         </h1>
         <span style="position: relative">
-          <md-filled-button
+          <md-outlined-button
             id="more"
             @click=${() => {
               this.changeStenciLUI.click();
             }}
             >Change Stencil
             <md-icon slot="icon">file_open</md-icon>
-          </md-filled-button>
+          </md-outlined-button>
         </span>
       </div>
+      <section>
+        <div id="appMaker">
+          <div>
+            <h2 id="appMenuHeader">
+              Select Application
+              <md-icon-button id="menuApplicationsButton"
+                ><md-icon>more_vert</md-icon></md-icon-button
+              >
+              <md-menu
+                positioning="popover"
+                id="menuApplications"
+                anchor="menuApplicationsButton"
+              >
+                <md-menu-item
+                  @click=${() => {
+                    this.showDeprecated = !this.showDeprecated;
+                  }}
+                >
+                  <div slot="headline">
+                    <label class="menu-item">
+                      <md-checkbox
+                        touch-target="wrapper"
+                        ?checked=${this.showDeprecated}
+                      ></md-checkbox>
+                      Show Deprecated
+                    </label>
+                  </div>
+                </md-menu-item>
+              </md-menu>
+            </h2>
 
-      <h2>Select Application</h2>
+            <md-list id="applications">${appCategories}</md-list>
+          </div>
+          ${this.renderIedsForUse()}
+        </div>
+      </section>
       <input
         id="changeStencil"
         @click=${({ target }: MouseEvent) => {
@@ -314,6 +520,9 @@ export default class Stencil extends LitElement {
   }
 
   renderCreate(): TemplateResult {
+    this.createEventListeners = false;
+    if (!this.doc)
+      return html`<h1>Please open a file to use this functionality</h1>`;
     return html`
       <h1>Enter Stencil Data</h1>
       <div class="group appinf">
@@ -346,14 +555,20 @@ export default class Stencil extends LitElement {
           value="Configure MUs and Bus Protection"
         >
         </md-outlined-text-field>
+        <md-outlined-text-field id="appver" label="Version" value="1.0.0">
+        </md-outlined-text-field>
+        <label id="deprecated">
+          <md-checkbox id="appdeprecated" touch-target="wrapper"></md-checkbox>
+          Deprecated
+        </label>
       </div>
       <div class="group">
-        <md-outlined-button
+        <md-filled-button
           class="button"
-          @click=${() => this.iedSelectorUI.show()}
+          @click=${() => this.iedTemplateSelectorUI.show()}
           >Add IEDs
           <md-icon slot="icon">developer_board</md-icon>
-        </md-outlined-button>
+        </md-filled-button>
       </div>
       <div class="group appinf" id="function">
         ${this.uniqueIeds.map(
@@ -366,16 +581,19 @@ export default class Stencil extends LitElement {
             ></md-outlined-text-field>`
         )}
       </div>
-      <md-outlined-button class="button" @click=${() => this.saveStencil()}
+      <md-filled-button
+        class="button"
+        ?disabled=${this.uniqueIeds.length === 0}
+        @click=${() => this.saveStencil()}
         >Add Application
         <md-icon slot="icon">draw_collage</md-icon>
-      </md-outlined-button>
+      </md-filled-button>
       <div class="output">
         <md-outlined-text-field
           id="output"
           type="textarea"
           label="Stencil Output File"
-          value="${this.stencilData}"
+          value="${JSON.stringify(this.stencilData, null, 2)}"
           rows="10"
         >
         </md-outlined-text-field>
@@ -387,7 +605,7 @@ export default class Stencil extends LitElement {
     `;
   }
 
-  renderIedSelector(): TemplateResult {
+  renderTemplateIedsSelector(): TemplateResult {
     return html`<md-dialog
       id="selection-dialog"
       @cancel=${(event: Event) => {
@@ -395,6 +613,7 @@ export default class Stencil extends LitElement {
         // this.clearSelection();
       }}
     >
+      <div slot="headline">Select IEDs to create a template mapping</div>
       <form slot="content" id="selection" method="dialog">
         <selection-list
           id="selection-list"
@@ -416,15 +635,15 @@ export default class Stencil extends LitElement {
       <div slot="actions">
         <md-text-button
           @click="${() => {
-            this.iedSelectorUI.close();
-            this.clearIedSelection();
+            this.iedTemplateSelectorUI.close();
+            this.clearIedTemplateSelection();
           }}"
           >Cancel</md-text-button
         >
         <md-text-button
           @click="${() => {
             const ieds: Element[] = this.selectionListUI.selectedElements;
-            this.clearIedSelection();
+            this.clearIedTemplateSelection();
 
             const iedNames = ieds.map(ied => ied.getAttribute('name'));
 
@@ -458,8 +677,6 @@ export default class Stencil extends LitElement {
                   this.uniqueIeds.push(val.from);
               });
             });
-            // console.log(this.uniqueIeds);
-            // console.log(this.stencilData);
           }}"
           form="selection"
           >Add IEDs</md-text-button
@@ -478,13 +695,13 @@ export default class Stencil extends LitElement {
           this.tabIndex = index;
         }}
       >
-        <mwc-tab label="Use" icon="stadia_controller" default stacked></mwc-tab>
-        <mwc-tab label="Create" icon="construction" stacked></mwc-tab>
+        <mwc-tab label="Use" icon="stadia_controller" default></mwc-tab>
+        <mwc-tab label="Create" icon="construction"></mwc-tab>
       </mwc-tab-bar>
       <section>
         ${this.tabIndex === 0 ? this.renderUse() : this.renderCreate()}
       </section>
-      ${this.renderIedSelector()}`;
+      ${this.renderTemplateIedsSelector()} ${this.renderFunctionIedSelector()}`;
   }
 
   static styles = css`
@@ -511,11 +728,29 @@ export default class Stencil extends LitElement {
       padding-left: 0.3em;
     }
 
+    p {
+      color: var(--mdc-theme-on-surface);
+      font-family: 'Roboto', sans-serif;
+      font-weight: 300;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      margin: 0px;
+      padding-left: 0.3em;
+    }
+
+    label {
+      color: var(--mdc-theme-on-surface);
+      font-family: 'Roboto', sans-serif;
+      font-weight: normal;
+    }
+
     mwc-tab-bar,
     #output {
       width: 100%;
       display: block;
       margin-top: 20px;
+      --md-outlined-text-field-input-text-font: 'Roboto Mono';
     }
 
     #stencilName {
@@ -526,6 +761,15 @@ export default class Stencil extends LitElement {
     #appdesc,
     #stendesc {
       width: 400px;
+    }
+
+    #applications,
+    #iedsAndFunctions {
+      width: 500px;
+    }
+
+    #applications {
+      height: 100%;
     }
 
     #stencilVersion {
@@ -540,6 +784,17 @@ export default class Stencil extends LitElement {
       width: 300px;
     }
 
+    #appMaker {
+      display: flex;
+      flex-direction: row;
+    }
+
+    #headline,
+    #deprecated {
+      display: flex;
+      align-items: center;
+    }
+
     .button,
     .appinf > md-outlined-text-field {
       margin: 10px;
@@ -548,6 +803,24 @@ export default class Stencil extends LitElement {
     .group {
       display: flex;
       flex-direction: row;
+    }
+
+    .appIed {
+      margin: 15px;
+    }
+
+    #appMenuHeader {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    md-list-item.selected {
+      background-color: var(--thumbBG);
+    }
+
+    .menu-item {
+      display: inline-flex;
+      align-items: center;
     }
 
     section {

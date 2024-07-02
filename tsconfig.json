@@ -20,5 +20,8 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["**/*.ts"]
+  "include": ["**/*.ts"],
+  "files": [
+    "./default_stencil.json"
+  ],
 }
