@@ -11,8 +11,10 @@ type Mapping = {
 };
 
 export type ControlBlockInfo = {
+  name: string;
   from: string;
   to: string;
+  type: string;
   mappings: Mapping[];
   supervision: string;
 };
@@ -70,14 +72,14 @@ export function getMappingInfo(
   doc: XMLDocument,
   fromName: string,
   toName: string
-): Map<string, ControlBlockInfo> {
+): ControlBlockInfo[] {
   const fromIed = doc.querySelector(`:root > IED[name="${fromName}"`)!;
 
   const controlBlocks = Array.from(
     fromIed.querySelectorAll('GSEControl, SampledValueControl')
   );
 
-  const cbMappings = new Map<string, ControlBlockInfo>();
+  const cbMappings: ControlBlockInfo[] = [];
 
   controlBlocks.forEach((cb: Element) => {
     const extRefMappings = findControlBlockSubscription(cb)
@@ -94,9 +96,11 @@ export function getMappingInfo(
       const toIed = doc.querySelector(`:root > IED[name="${toName}"`)!;
       const supLn = findSupervision(cb, toIed) ?? null;
 
-      cbMappings.set(identityStr(cb), {
+      cbMappings.push({
+        name: `${identityStr(cb)}`,
         from: fromName,
         to: toName,
+        type: cb.tagName,
         mappings: extRefMappings,
         supervision: supLn ? `${identityStr(supLn)}` : 'None'
       });

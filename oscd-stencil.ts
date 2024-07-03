@@ -27,6 +27,7 @@ import type { SelectionList } from '@openenergytools/filterable-lists/dist/selec
 import type { MdIconButton } from '@material/web/iconbutton/icon-button.js';
 import type { MdMenu } from '@material/web/menu/menu';
 
+import { find } from '@openenergytools/scl-lib';
 import defaultStencil from './default_stencil.json' with { type: 'json' };
 
 import {
@@ -50,7 +51,7 @@ type Application = {
   version: string;
   deprecated: boolean;
   IEDS: Record<string, IED>;
-  ControlBlocks: Record<string, ControlBlockInfo>;
+  ControlBlocks: ControlBlockInfo[];
 };
 
 type VersionedApplications = {
@@ -80,7 +81,7 @@ export default class Stencil extends LitElement {
 
   @property() tabIndex: number = 0;
 
-  @property() iedMappingStencilData: Map<string, ControlBlockInfo> = new Map();
+  @property() iedMappingStencilData: ControlBlockInfo[] = [];
 
   @property() uniqueIeds: string[] = [];
 
@@ -184,9 +185,7 @@ export default class Stencil extends LitElement {
               version: this.appVer.value,
               deprecated: this.appDeprecated.checked,
               IEDS: Object.fromEntries(ieds),
-              ControlBlocks: Object.fromEntries(
-                this.iedMappingStencilData.entries()
-              )
+              ControlBlocks: this.iedMappingStencilData
             }
           ]
         }
@@ -221,7 +220,7 @@ export default class Stencil extends LitElement {
 
   clearStencilCreateData(): void {
     this.uniqueIeds = [];
-    this.iedMappingStencilData = new Map();
+    this.iedMappingStencilData = [];
   }
 
   clearIedTemplateSelection(): void {
@@ -261,7 +260,35 @@ export default class Stencil extends LitElement {
 
   // eslint-disable-next-line class-methods-use-this
   applyStencil() {
-    throw new Error('Method not implemented.');
+    const usedFunctionCombinations = [
+      ...combinations([...this.functionToIed.keys()], 2)
+    ];
+    usedFunctionCombinations.forEach((combo: string[]) => {
+      const fn1 = combo[0];
+      const fn2 = combo[1];
+      const fn1Info = this.selectedAppVersion!.IEDS[combo[0]];
+      const fn2Info = this.selectedAppVersion!.IEDS[combo[1]];
+      const newIed1Name = this.functionToIed.get(combo[0]);
+      const newIed2Name = this.functionToIed.get(combo[1]);
+
+      this.selectedAppVersion?.ControlBlocks.filter(
+        cb =>
+          (cb.from === fn1Info.originalName &&
+            cb.to === fn2Info.originalName) ||
+          (cb.to === fn1Info.originalName && cb.from === fn2Info.originalName)
+      ).forEach(cb => {
+        const newFromIed =
+          cb.from === fn1Info.originalName ? newIed1Name : newIed2Name;
+        const newToIed =
+          cb.to === fn1Info.originalName ? newIed1Name : newIed2Name;
+        const newCb = find(
+          this.doc,
+          cb.type,
+          `${newFromIed}${cb.name.substring(cb.name.indexOf('>'))}`
+        );
+        console.log(newCb);
+      });
+    });
   }
 
   updated(): void {
@@ -292,6 +319,17 @@ export default class Stencil extends LitElement {
   }
 
   renderFunctionIedSelector(): TemplateResult {
+    // if (!this.applicationSelectedFunction) return html``
+    // TODO: It is a roblem if the query
+    const func = this.applicationSelectedFunction
+      ? this.selectedAppVersion?.IEDS[this.applicationSelectedFunction]
+      : null;
+
+    const items = this.doc?.querySelectorAll(
+      `:root > IED[type="${func ? func.type : ''}"][manufacturer="${
+        func ? func.manufacturer : ''
+      }"]`
+    );
     return html`<md-dialog
       id="ied-function-selector-dialog"
       @cancel=${(event: Event) => {
@@ -299,28 +337,45 @@ export default class Stencil extends LitElement {
       }}
     >
       <div slot="headline">
-        Select IED for function - ${this.applicationSelectedFunction}
+        Select IED for function - ${this.applicationSelectedFunction ?? ''}
       </div>
       <form slot="content" id="ied-selection" method="dialog">
         <action-list
           id="action-list"
           filterable
-          .items=${Array.from(this.doc?.querySelectorAll('IED') ?? []).map(
-            ied => {
-              const { firstLine, secondLine } = getIedDescription(ied);
+          .items=${!items
+            ? {}
+            : Array.from(items)
+                .filter(ied => {
+                  const id = ied.querySelector(
+                    ':scope > Private[type="OpenSCD-Stencil-Id"]'
+                  )?.textContent;
+                  const version = ied.querySelector(
+                    ':scope > Private[type="OpenSCD-Stencil-Version"]'
+                  )?.textContent;
+                  return (
+                    !func ||
+                    func.privates.some(
+                      priv =>
+                        priv['OpenSCD-Stencil-Id'] === id &&
+                        priv['OpenSCD-Stencil-Version'] === version
+                    )
+                  );
+                })
+                .map(ied => {
+                  const { firstLine, secondLine } = getIedDescription(ied);
 
-              return {
-                headline: `${ied.getAttribute('name')!} — ${firstLine}`,
-                supportingText: secondLine,
-                attachedElement: ied,
-                primaryAction: () => {
-                  this.applicationSelectedIed = ied;
-                  this.iedSelectorUI.returnValue = 'ok';
-                  this.iedSelectorUI.close();
-                }
-              };
-            }
-          )}
+                  return {
+                    headline: `${ied.getAttribute('name')!} — ${firstLine}`,
+                    supportingText: secondLine,
+                    attachedElement: ied,
+                    primaryAction: () => {
+                      this.applicationSelectedIed = ied;
+                      this.iedSelectorUI.returnValue = 'ok';
+                      this.iedSelectorUI.close();
+                    }
+                  };
+                })}
         ></action-list>
       </form>
       <div slot="actions">
@@ -655,19 +710,15 @@ export default class Stencil extends LitElement {
 
             const iedCombinations = Array.from(combinations(iedNames, 2));
 
-            this.iedMappingStencilData = new Map();
+            this.iedMappingStencilData = [];
             iedCombinations.forEach(iedPairs => {
               // A to B
               const aDir = getMappingInfo(this.doc, iedPairs[0]!, iedPairs[1]!);
-              aDir.forEach((value, key) =>
-                this.iedMappingStencilData.set(key, value)
-              );
-              // B to A
+              this.iedMappingStencilData.push(...aDir);
 
+              // B to A
               const bDir = getMappingInfo(this.doc, iedPairs[1]!, iedPairs[0]!);
-              bDir.forEach((value, key) =>
-                this.iedMappingStencilData.set(key, value)
-              );
+              this.iedMappingStencilData.push(...bDir);
 
               Array.from(aDir.values()).forEach((val: ControlBlockInfo) => {
                 if (!this.uniqueIeds.includes(val.to))
