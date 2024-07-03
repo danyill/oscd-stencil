@@ -38,32 +38,32 @@ import { getIedDescription } from './getIedDescription.js';
 
 type IED = {
   originalName: string;
-  desc: string;
   type: string;
   manufacturer: string;
-  configVersion: string;
+  privates: {
+    'OpenSCD-Stencil-Id': string;
+    'OpenSCD-Stencil-Version': string;
+  }[];
 };
 
 type Application = {
+  version: string;
   deprecated: boolean;
   IEDS: Record<string, IED>;
   ControlBlocks: Record<string, ControlBlockInfo>;
 };
 
 type VersionedApplications = {
+  category: string;
+  name: string;
   description: string;
-  versions: Record<string, VersionedApplications>;
+  versions: Application[];
 };
 
 type StencilData = {
   description: string;
   version: string;
-  applications: Record<string, VersionedApplications>;
-};
-
-type SelectedApplication = {
-  appCategory: string;
-  appName: string;
+  applications: VersionedApplications[];
 };
 
 /**
@@ -86,7 +86,9 @@ export default class Stencil extends LitElement {
 
   @property() stencilData: StencilData;
 
-  @property() selectedApplication: SelectedApplication | null = null;
+  @property() selectedApplication: VersionedApplications | null = null;
+
+  @property() selectedAppVersion: Application | undefined = undefined;
 
   @property() applicationSelectedIed: Element | null = null;
 
@@ -153,29 +155,42 @@ export default class Stencil extends LitElement {
       const ied = this.doc.querySelector(`IED[name="${iedName}"]`)!;
       ieds.set(iedNameMapping.get(iedName) ?? 'Unknown IED', {
         originalName: ied.getAttribute('name')!,
-        desc: ied.getAttribute('desc')!,
         type: ied.getAttribute('type')!,
         manufacturer: ied.getAttribute('manufacturer')!,
-        configVersion: ied.getAttribute('configVersion')!
+        privates: [
+          {
+            'OpenSCD-Stencil-Id':
+              ied.querySelector(':scope > Private[type="OpenSCD-Stencil-Id"]')
+                ?.textContent ?? 'No Stencil ID Found',
+            'OpenSCD-Stencil-Version':
+              ied.querySelector(
+                ':scope > Private[type="OpenSCD-Stencil-Version"]'
+              )?.textContent ?? 'No Stencil Version Found'
+          }
+        ]
       });
     });
 
     this.stencilData = {
       description: this.stencilDesc.value,
       version: this.stencilVersion.value,
-      applications: {
-        [this.appCategory.value ?? 'UnknownCategory']: {
-          [this.appName.value ?? 'UnknownName']: {
-            version: this.appVer.value,
-            deprecated: this.appDeprecated.checked,
-            description: this.appDesc.value,
-            IEDS: Object.fromEntries(ieds),
-            ControlBlocks: Object.fromEntries(
-              this.iedMappingStencilData.entries()
-            )
-          }
+      applications: [
+        {
+          category: this.appCategory.value ?? 'UnknownCategory',
+          name: this.appName.value ?? 'UnknownName',
+          description: this.appDesc.value,
+          versions: [
+            {
+              version: this.appVer.value,
+              deprecated: this.appDeprecated.checked,
+              IEDS: Object.fromEntries(ieds),
+              ControlBlocks: Object.fromEntries(
+                this.iedMappingStencilData.entries()
+              )
+            }
+          ]
         }
-      }
+      ]
     };
 
     const outputText = JSON.stringify(this.stencilData, null, 2);
@@ -323,32 +338,23 @@ export default class Stencil extends LitElement {
   }
 
   renderIedsForUse(): TemplateResult {
-    const currentApplication = this.selectedApplication
-      ? this.stencilData.applications[this.selectedApplication.appCategory][
-          this.selectedApplication.appName
-        ]
-      : null;
-
     return html`${
-      this.selectedApplication
+      this.selectedApplication && this.selectedAppVersion
         ? html`<div>
-            <h2>${this.selectedApplication.appCategory}</h2>
+            <h2>${this.selectedApplication.category}</h2>
             <div style="padding-left:30px;">
-              <h3>${this.selectedApplication.appName}</h3>
-              <p>${currentApplication?.description}</p>
+              <h3>${this.selectedApplication.name}</h3>
+              <p>${this.selectedApplication?.description}</p>
             </div>
             <h2>Select IEDs for Function</h2>
             <md-list id="iedsAndFunctions">
-              ${Object.keys(currentApplication!.IEDS).map(iedFunction => {
-                const ied = currentApplication!.IEDS[iedFunction];
+              ${Object.keys(this.selectedAppVersion.IEDS).map(iedFunction => {
+                const ied = this.selectedAppVersion!.IEDS[iedFunction];
 
                 return html`
                   <md-list-item
                     type="button"
-                    @click=${(event: Event) => {
-                      console.log(ied);
-                      console.log(event);
-
+                    @click=${() => {
                       this.applicationSelectedFunction = iedFunction;
                       this.applicationSelectedFunctionReqs = ied;
                       // = (<HTMLElement>event.target).closest('md-list-item')
@@ -400,58 +406,58 @@ export default class Stencil extends LitElement {
     if (!this.doc)
       return html`<h1>Please open a file to use this functionality</h1>`;
 
-    const appCategories: TemplateResult[] = [];
-    Object.keys(this.stencilData.applications)
+    const appCategories: TemplateResult[] = this.stencilData.applications
       .filter(
-        appCat =>
-          this.stencilData.applications[appCat].some(
-            (app: Application) => app.deprecated
-          )
-        // return true;
+        app =>
+          app.versions.some(
+            version => version.deprecated && this.showDeprecated
+          ) || !this.showDeprecated
       )
-      .forEach(appCategory => {
-        appCategories.push(html`
-          <md-list-item data-cat="${appCategory}">
-            <div slot="headline">${appCategory}</div>
-            <md-icon slot="start">ad_group</md-icon>
-          </md-list-item>
-        `);
+      .map(app => app.category)
+      .filter((item, i, ar) => ar.indexOf(item) === i)
+      .map(
+        appCategory =>
+          html` <md-list-item data-cat="${appCategory}">
+              <div slot="headline">${appCategory}</div>
+              <md-icon slot="start">ad_group</md-icon>
+            </md-list-item>
+            ${this.stencilData.applications
+              .filter(app => app.category === appCategory)
+              .flatMap(app => {
+                if (this.showDeprecated === false)
+                  this.selectedAppVersion = app.versions.find(
+                    appVer => appVer.deprecated === false
+                  );
 
-        Object.keys(this.stencilData.applications[appCategory]).forEach(
-          appName => {
-            appCategories.push(html`
-              <md-list-item
-                @click=${(event: Event) => {
-                  this.selectedApplication = { appCategory, appName };
-                  (<HTMLElement>event.target)
-                    .closest('md-list')!
-                    .querySelectorAll('md-list-item')
-                    .forEach(listItem => {
-                      listItem.classList.remove('selected');
-                    });
+                return html`<md-list-item
+                  @click=${(event: Event) => {
+                    this.selectedApplication = app;
+                    (<HTMLElement>event.target)
+                      .closest('md-list')!
+                      .querySelectorAll('md-list-item')
+                      .forEach(listItem => {
+                        listItem.classList.remove('selected');
+                      });
 
-                  (<HTMLElement>event.target)
-                    .closest('md-list-item')
-                    ?.classList.add('selected');
-                }}
-                type="button"
-                data-cat="${appCategory}"
-                data-name="${appName}"
-              >
-                <div slot="headline">${appName}</div>
-                <div slot="supporting-text">
-                  ${this.stencilData.applications[appCategory][appName]
-                    .description}
-                </div>
-                <div slot="trailing-supporting-text">
-                  ${this.stencilData.applications[appCategory][appName].version}
-                </div>
-                <md-icon slot="start">draw_collage</md-icon>
-              </md-list-item>
-            `);
-          }
-        );
-      });
+                    (<HTMLElement>event.target)
+                      .closest('md-list-item')
+                      ?.classList.add('selected');
+                  }}
+                  type="button"
+                  data-cat="${appCategory}"
+                  data-name="${app.name}"
+                >
+                  <div slot="headline">${app.name}</div>
+                  <div slot="supporting-text">${app.description}</div>
+                  <div slot="trailing-supporting-text">
+                    ${this.selectedAppVersion
+                      ? this.selectedAppVersion.version
+                      : 'No available version'}
+                  </div>
+                  <md-icon slot="start">draw_collage</md-icon>
+                </md-list-item>`;
+              })}`
+      );
 
     return html`
       <div id="headline">
