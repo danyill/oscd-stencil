@@ -11,24 +11,24 @@
           "version": "1.0.0",
           "deprecated": false,
           "IEDS": {
-            "Coupler": {
-              "originalName": "XAT_278_MU2",
-              "type": "6MU85",
-              "manufacturer": "SIEMENS",
-              "privates": [
-                {
-                  "OpenSCD-Stencil-Id": "6MU85-Coupler",
-                  "OpenSCD-Stencil-Version": "1.0.0"
-                }
-              ]
-            },
-            "Bus Prot": {
+            "Bus Protection": {
               "originalName": "XAT_BusA_P2",
               "type": "7SS85",
               "manufacturer": "SIEMENS",
               "privates": [
                 {
                   "OpenSCD-Stencil-Id": "7SS85-B2B-DCB-Coupler",
+                  "OpenSCD-Stencil-Version": "1.0.0"
+                }
+              ]
+            },
+            "Bay 1": {
+              "originalName": "XAT_232_MU2",
+              "type": "6MU85",
+              "manufacturer": "SIEMENS",
+              "privates": [
+                {
+                  "OpenSCD-Stencil-Id": "6MU85-TxLine",
                   "OpenSCD-Stencil-Version": "1.0.0"
                 }
               ]
@@ -44,13 +44,35 @@
                 }
               ]
             },
-            "Bay 1": {
-              "originalName": "XAT_232_MU2",
+            "Coupler": {
+              "originalName": "XAT_278_MU2",
               "type": "6MU85",
               "manufacturer": "SIEMENS",
               "privates": [
                 {
-                  "OpenSCD-Stencil-Id": "6MU85-Line1Pole",
+                  "OpenSCD-Stencil-Id": "6MU85-Coupler",
+                  "OpenSCD-Stencil-Version": "1.0.0"
+                }
+              ]
+            },
+            "Adjacent Bus Protection": {
+              "originalName": "XAT_BusB_P2",
+              "type": "7SS85",
+              "manufacturer": "SIEMENS",
+              "privates": [
+                {
+                  "OpenSCD-Stencil-Id": "7SS85-B2B-DCB-Coupler",
+                  "OpenSCD-Stencil-Version": "1.0.0"
+                }
+              ]
+            },
+            "Adjacent Coupler": {
+              "originalName": "XAT_288_MU2",
+              "type": "6MU85",
+              "manufacturer": "SIEMENS",
+              "privates": [
+                {
+                  "OpenSCD-Stencil-Id": "6MU85-Coupler",
                   "OpenSCD-Stencil-Version": "1.0.0"
                 }
               ]
@@ -58,61 +80,204 @@
           },
           "ControlBlocks": [
             {
-              "name": "XAT_BusA_P2>>Bay14_CB>Ctl_14",
-              "from": "XAT_BusA_P2",
-              "to": "XAT_278_MU2",
+              "name": "XAT_BusB_P2>>Bay14_CB>TripCBFail",
+              "from": "XAT_BusB_P2",
+              "to": "XAT_BusA_P2",
               "type": "GSEControl",
               "mappings": [
                 {
-                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_14>Bay14_CB/ CSWI 1.OpnCmd stVal (ST)",
-                  "ExtRef": "XAT_278_MU2>>CB> CSWI 1>OpOpn;/Ind/stVal[0]"
+                  "FCDA": "XAT_BusB_P2>>Bay14_CB>TripCBFail>Bay14_CB/ PTRC 1.Op general (ST)",
+                  "ExtRef": "XAT_BusA_P2>>Bay14_CB> RBRF 1>InitCBfail;/Ind/stVal[0]"
                 },
                 {
-                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_14>Bay14_CB/ CSWI 1.OpnCmd q (ST)",
-                  "ExtRef": "XAT_278_MU2>>CB> CSWI 1>OpOpn;/Ind/q[0]"
-                },
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_14>Bay14_CB/ CSWI 1.ClsCmd stVal (ST)",
-                  "ExtRef": "XAT_278_MU2>>CB> CSWI 1>OpCls;/Ind/stVal[0]"
-                },
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_14>Bay14_CB/ CSWI 1.ClsCmd q (ST)",
-                  "ExtRef": "XAT_278_MU2>>CB> CSWI 1>OpCls;/Ind/q[0]"
-                },
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_14>Bay14_CB/ RBRF 1.OpIn general (ST)",
-                  "ExtRef": "XAT_278_MU2>>Prot_BayLAT>EXT_ PSCH 1>RxExtIn1;/Ind/stVal[0]"
-                },
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_14>Bay14_CB/ RBRF 1.OpIn q (ST)",
-                  "ExtRef": "XAT_278_MU2>>Prot_BayLAT>EXT_ PSCH 1>RxExtIn1;/Ind/q[0]"
-                },
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_14>Bay14_CB/ RBRF 1.OpIn general (ST)",
-                  "ExtRef": "XAT_278_MU2>>Prot_BayLAT>EXT_ PSCH 1>TestExtIn1;/Ind/stVal[0]"
-                },
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_14>Bay14_CB/ RBRF 1.OpIn q (ST)",
-                  "ExtRef": "XAT_278_MU2>>Prot_BayLAT>EXT_ PSCH 1>TestExtIn1;/Ind/q[0]"
-                },
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_14>Bay14_CB/ PTRC 1.Op general (ST)",
-                  "ExtRef": "XAT_278_MU2>>Prot_BayTrip>EXT_ PSCH 1>TestExtIn;/Ind/stVal[0]"
-                },
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_14>Bay14_CB/ PTRC 1.Op q (ST)",
-                  "ExtRef": "XAT_278_MU2>>Prot_BayTrip>EXT_ PSCH 1>TestExtIn;/Ind/q[0]"
-                },
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_14>Bay14_CB/ PTRC 1.Op general (ST)",
-                  "ExtRef": "XAT_278_MU2>>Prot_BayTrip>EXT_ PSCH 1>RxExtIn1;/Ind/stVal[0]"
-                },
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_14>Bay14_CB/ PTRC 1.Op q (ST)",
-                  "ExtRef": "XAT_278_MU2>>Prot_BayTrip>EXT_ PSCH 1>RxExtIn1;/Ind/q[0]"
+                  "FCDA": "XAT_BusB_P2>>Bay14_CB>TripCBFail>Bay14_CB/ PTRC 1.Op q (ST)",
+                  "ExtRef": "XAT_BusA_P2>>Bay14_CB> RBRF 1>InitCBfail;/Ind/q[0]"
                 }
               ],
-              "supervision": "XAT_278_MU2>>ComSupervision_GOOSE> LGOS 1"
+              "supervision": "XAT_BusA_P2>>ComSupervision_GOOSE> LGOS 28"
+            },
+            {
+              "name": "XAT_BusA_P2>>Bay14_CB>TripCBFail",
+              "from": "XAT_BusA_P2",
+              "to": "XAT_BusB_P2",
+              "type": "GSEControl",
+              "mappings": [
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>TripCBFail>Bay14_CB/ PTRC 1.Op general (ST)",
+                  "ExtRef": "XAT_BusB_P2>>Bay14_CB> RBRF 1>InitCBfail;/Ind/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>TripCBFail>Bay14_CB/ PTRC 1.Op q (ST)",
+                  "ExtRef": "XAT_BusB_P2>>Bay14_CB> RBRF 1>InitCBfail;/Ind/q[0]"
+                }
+              ],
+              "supervision": "XAT_BusB_P2>>ComSupervision_GOOSE> LGOS 28"
+            },
+            {
+              "name": "XAT_232_MU2>>CB>Ind_1",
+              "from": "XAT_232_MU2",
+              "to": "XAT_BusA_P2",
+              "type": "GSEControl",
+              "mappings": [
+                {
+                  "FCDA": "XAT_232_MU2>>CB>Ind_1>CB/ XCBR 4.Pos stVal (ST)",
+                  "ExtRef": "XAT_BusA_P2>>Bay1_CB> XCBR 4>RxPos1;/Pos/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_232_MU2>>CB>Ind_1>CB/ XCBR 4.Pos q (ST)",
+                  "ExtRef": "XAT_BusA_P2>>Bay1_CB> XCBR 4>RxPos1;/Pos/q[0]"
+                }
+              ],
+              "supervision": "XAT_BusA_P2>>ComSupervision_GOOSE> LGOS 1"
+            },
+            {
+              "name": "XAT_232_MU2>>PortF_MU1_Bus>MSVCB03",
+              "from": "XAT_232_MU2",
+              "to": "XAT_BusA_P2",
+              "type": "SampledValueControl",
+              "mappings": [
+                {
+                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01A TCTR 1.AmpSv instMag.i (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01A TCTR 1>AmpSv;TCTR/AmpSv/instMag.i[0]"
+                },
+                {
+                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01A TCTR 1.AmpSv q (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01A TCTR 1>AmpSv;TCTR/AmpSv/q[0]"
+                },
+                {
+                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01B TCTR 2.AmpSv instMag.i (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01B TCTR 2>AmpSv;TCTR/AmpSv/instMag.i[0]"
+                },
+                {
+                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01B TCTR 2.AmpSv q (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01B TCTR 2>AmpSv;TCTR/AmpSv/q[0]"
+                },
+                {
+                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01C TCTR 3.AmpSv instMag.i (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01C TCTR 3>AmpSv;TCTR/AmpSv/instMag.i[0]"
+                },
+                {
+                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01C TCTR 3.AmpSv q (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01C TCTR 3>AmpSv;TCTR/AmpSv/q[0]"
+                },
+                {
+                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01N TCTR 4.AmpSv instMag.i (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01N TCTR 4>AmpSv;TCTR/AmpSv/instMag.i[0]"
+                },
+                {
+                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01N TCTR 4.AmpSv q (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01N TCTR 4>AmpSv;TCTR/AmpSv/q[0]"
+                }
+              ],
+              "supervision": "XAT_BusA_P2>>ComSupervision_SV> LSVS 1"
+            },
+            {
+              "name": "XAT_BusA_P2>>Bay1_CB>Ctl_1",
+              "from": "XAT_BusA_P2",
+              "to": "XAT_232_MU2",
+              "type": "GSEControl",
+              "mappings": [
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay1_CB>Ctl_1>Bay1_CB/ PTRC 1.Op general (ST)",
+                  "ExtRef": "XAT_232_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>RxExtIn1;/Ind/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay1_CB>Ctl_1>Bay1_CB/ PTRC 1.Op q (ST)",
+                  "ExtRef": "XAT_232_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>RxExtIn1;/Ind/q[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay1_CB>Ctl_1>Bay1_CB/ PTRC 1.Op general (ST)",
+                  "ExtRef": "XAT_232_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>TestExtIn;/Ind/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay1_CB>Ctl_1>Bay1_CB/ PTRC 1.Op q (ST)",
+                  "ExtRef": "XAT_232_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>TestExtIn;/Ind/q[0]"
+                }
+              ],
+              "supervision": "XAT_232_MU2>>ComSupervision_GOOSE> LGOS 2"
+            },
+            {
+              "name": "XAT_242_MU2>>CB>Ind_1",
+              "from": "XAT_242_MU2",
+              "to": "XAT_BusA_P2",
+              "type": "GSEControl",
+              "mappings": [
+                {
+                  "FCDA": "XAT_242_MU2>>CB>Ind_1>CB/ XCBR 4.Pos stVal (ST)",
+                  "ExtRef": "XAT_BusA_P2>>Bay2_CB> XCBR 4>RxPos1;/Pos/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_242_MU2>>CB>Ind_1>CB/ XCBR 4.Pos q (ST)",
+                  "ExtRef": "XAT_BusA_P2>>Bay2_CB> XCBR 4>RxPos1;/Pos/q[0]"
+                }
+              ],
+              "supervision": "XAT_BusA_P2>>ComSupervision_GOOSE> LGOS 2"
+            },
+            {
+              "name": "XAT_242_MU2>>PortF_MU1_Bus>MSVCB03",
+              "from": "XAT_242_MU2",
+              "to": "XAT_BusA_P2",
+              "type": "SampledValueControl",
+              "mappings": [
+                {
+                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01A TCTR 1.AmpSv instMag.i (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02A TCTR 1>AmpSv;TCTR/AmpSv/instMag.i[0]"
+                },
+                {
+                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01A TCTR 1.AmpSv q (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02A TCTR 1>AmpSv;TCTR/AmpSv/q[0]"
+                },
+                {
+                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01B TCTR 2.AmpSv instMag.i (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02B TCTR 2>AmpSv;TCTR/AmpSv/instMag.i[0]"
+                },
+                {
+                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01B TCTR 2.AmpSv q (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02B TCTR 2>AmpSv;TCTR/AmpSv/q[0]"
+                },
+                {
+                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01C TCTR 3.AmpSv instMag.i (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02C TCTR 3>AmpSv;TCTR/AmpSv/instMag.i[0]"
+                },
+                {
+                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01C TCTR 3.AmpSv q (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02C TCTR 3>AmpSv;TCTR/AmpSv/q[0]"
+                },
+                {
+                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01N TCTR 4.AmpSv instMag.i (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02N TCTR 4>AmpSv;TCTR/AmpSv/instMag.i[0]"
+                },
+                {
+                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01N TCTR 4.AmpSv q (MX)",
+                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02N TCTR 4>AmpSv;TCTR/AmpSv/q[0]"
+                }
+              ],
+              "supervision": "XAT_BusA_P2>>ComSupervision_SV> LSVS 2"
+            },
+            {
+              "name": "XAT_BusA_P2>>Bay2_CB>Ctl_2",
+              "from": "XAT_BusA_P2",
+              "to": "XAT_242_MU2",
+              "type": "GSEControl",
+              "mappings": [
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay2_CB>Ctl_1>Bay2_CB/ PTRC 1.Op general (ST)",
+                  "ExtRef": "XAT_242_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>RxExtIn1;/Ind/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay2_CB>Ctl_1>Bay2_CB/ PTRC 1.Op q (ST)",
+                  "ExtRef": "XAT_242_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>RxExtIn1;/Ind/q[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay2_CB>Ctl_1>Bay2_CB/ PTRC 1.Op general (ST)",
+                  "ExtRef": "XAT_242_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>TestExtIn;/Ind/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay2_CB>Ctl_1>Bay2_CB/ PTRC 1.Op q (ST)",
+                  "ExtRef": "XAT_242_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>TestExtIn;/Ind/q[0]"
+                }
+              ],
+              "supervision": "XAT_242_MU2>>ComSupervision_GOOSE> LGOS 2"
             },
             {
               "name": "XAT_278_MU2>>CB>Ind_1",
@@ -197,170 +362,77 @@
               "supervision": "XAT_BusA_P2>>ComSupervision_SV> LSVS 14"
             },
             {
-              "name": "XAT_BusA_P2>>Bay2_CB>Ctl_2",
+              "name": "XAT_BusA_P2>>Bay14_CB>Ctl_14",
               "from": "XAT_BusA_P2",
-              "to": "XAT_242_MU2",
+              "to": "XAT_278_MU2",
               "type": "GSEControl",
               "mappings": [
                 {
-                  "FCDA": "XAT_BusA_P2>>Bay2_CB>Ctl_2>Bay2_CB/ PTRC 1.Op general (ST)",
-                  "ExtRef": "XAT_242_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>RxExtIn1;/Ind/stVal[0]"
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ CSWI 1.OpOpn stVal (ST)",
+                  "ExtRef": "XAT_278_MU2>>CB> CSWI 1>OpOpn;/Ind/stVal[0]"
                 },
                 {
-                  "FCDA": "XAT_BusA_P2>>Bay2_CB>Ctl_2>Bay2_CB/ PTRC 1.Op q (ST)",
-                  "ExtRef": "XAT_242_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>RxExtIn1;/Ind/q[0]"
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ CSWI 1.OpOpn q (ST)",
+                  "ExtRef": "XAT_278_MU2>>CB> CSWI 1>OpOpn;/Ind/q[0]"
                 },
                 {
-                  "FCDA": "XAT_BusA_P2>>Bay2_CB>Ctl_2>Bay2_CB/ PTRC 1.Op general (ST)",
-                  "ExtRef": "XAT_242_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>TestExtIn;/Ind/stVal[0]"
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ CSWI 1.OpCls stVal (ST)",
+                  "ExtRef": "XAT_278_MU2>>CB> CSWI 1>OpCls;/Ind/stVal[0]"
                 },
                 {
-                  "FCDA": "XAT_BusA_P2>>Bay2_CB>Ctl_2>Bay2_CB/ PTRC 1.Op q (ST)",
-                  "ExtRef": "XAT_242_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>TestExtIn;/Ind/q[0]"
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ CSWI 1.OpCls q (ST)",
+                  "ExtRef": "XAT_278_MU2>>CB> CSWI 1>OpCls;/Ind/q[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ RBRF 1.OpIn general (ST)",
+                  "ExtRef": "XAT_278_MU2>>Prot_BayLAT>EXT_ PSCH 1>RxExtIn1;/Ind/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ RBRF 1.OpIn q (ST)",
+                  "ExtRef": "XAT_278_MU2>>Prot_BayLAT>EXT_ PSCH 1>RxExtIn1;/Ind/q[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ RBRF 1.OpIn general (ST)",
+                  "ExtRef": "XAT_278_MU2>>Prot_BayLAT>EXT_ PSCH 1>TestExtIn1;/Ind/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ RBRF 1.OpIn q (ST)",
+                  "ExtRef": "XAT_278_MU2>>Prot_BayLAT>EXT_ PSCH 1>TestExtIn1;/Ind/q[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ PTRC 1.Op general (ST)",
+                  "ExtRef": "XAT_278_MU2>>Prot_BayTrip>EXT_ PSCH 1>TestExtIn;/Ind/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ PTRC 1.Op q (ST)",
+                  "ExtRef": "XAT_278_MU2>>Prot_BayTrip>EXT_ PSCH 1>TestExtIn;/Ind/q[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ PTRC 1.Op general (ST)",
+                  "ExtRef": "XAT_278_MU2>>Prot_BayTrip>EXT_ PSCH 1>RxExtIn1;/Ind/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ PTRC 1.Op q (ST)",
+                  "ExtRef": "XAT_278_MU2>>Prot_BayTrip>EXT_ PSCH 1>RxExtIn1;/Ind/q[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ PTRC 1.Op general (ST)",
+                  "ExtRef": "XAT_278_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>RxExtIn1;/Ind/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ PTRC 1.Op q (ST)",
+                  "ExtRef": "XAT_278_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>RxExtIn1;/Ind/q[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ PTRC 1.Op general (ST)",
+                  "ExtRef": "XAT_278_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>TestExtIn;/Ind/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_BusA_P2>>Bay14_CB>Ctl_1>Bay14_CB/ PTRC 1.Op q (ST)",
+                  "ExtRef": "XAT_278_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>TestExtIn;/Ind/q[0]"
                 }
               ],
-              "supervision": "XAT_242_MU2>>ComSupervision_GOOSE> LGOS 2"
-            },
-            {
-              "name": "XAT_242_MU2>>CB>Ind_1",
-              "from": "XAT_242_MU2",
-              "to": "XAT_BusA_P2",
-              "type": "GSEControl",
-              "mappings": [
-                {
-                  "FCDA": "XAT_242_MU2>>CB>Ind_1>CB/ XCBR 4.Pos stVal (ST)",
-                  "ExtRef": "XAT_BusA_P2>>Bay2_CB> XCBR 4>RxPos1;/Pos/stVal[0]"
-                },
-                {
-                  "FCDA": "XAT_242_MU2>>CB>Ind_1>CB/ XCBR 4.Pos q (ST)",
-                  "ExtRef": "XAT_BusA_P2>>Bay2_CB> XCBR 4>RxPos1;/Pos/q[0]"
-                }
-              ],
-              "supervision": "XAT_BusA_P2>>ComSupervision_GOOSE> LGOS 2"
-            },
-            {
-              "name": "XAT_242_MU2>>PortF_MU1_Bus>MSVCB03",
-              "from": "XAT_242_MU2",
-              "to": "XAT_BusA_P2",
-              "type": "SampledValueControl",
-              "mappings": [
-                {
-                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01A TCTR 1.AmpSv instMag.i (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02A TCTR 1>AmpSv;TCTR/AmpSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01A TCTR 1.AmpSv q (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02A TCTR 1>AmpSv;TCTR/AmpSv/q[0]"
-                },
-                {
-                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01B TCTR 2.AmpSv instMag.i (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02B TCTR 2>AmpSv;TCTR/AmpSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01B TCTR 2.AmpSv q (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02B TCTR 2>AmpSv;TCTR/AmpSv/q[0]"
-                },
-                {
-                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01C TCTR 3.AmpSv instMag.i (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02C TCTR 3>AmpSv;TCTR/AmpSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01C TCTR 3.AmpSv q (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02C TCTR 3>AmpSv;TCTR/AmpSv/q[0]"
-                },
-                {
-                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01N TCTR 4.AmpSv instMag.i (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02N TCTR 4>AmpSv;TCTR/AmpSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_242_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01N TCTR 4.AmpSv q (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT2>I02N TCTR 4>AmpSv;TCTR/AmpSv/q[0]"
-                }
-              ],
-              "supervision": "XAT_BusA_P2>>ComSupervision_SV> LSVS 2"
-            },
-            {
-              "name": "XAT_BusA_P2>>Bay1_CB>Ctl_1",
-              "from": "XAT_BusA_P2",
-              "to": "XAT_232_MU2",
-              "type": "GSEControl",
-              "mappings": [
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay1_CB>Ctl_1>Bay1_CB/ PTRC 1.Op general (ST)",
-                  "ExtRef": "XAT_232_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>RxExtIn1;/Ind/stVal[0]"
-                },
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay1_CB>Ctl_1>Bay1_CB/ PTRC 1.Op q (ST)",
-                  "ExtRef": "XAT_232_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>RxExtIn1;/Ind/q[0]"
-                },
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay1_CB>Ctl_1>Bay1_CB/ PTRC 1.Op general (ST)",
-                  "ExtRef": "XAT_232_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>TestExtIn;/Ind/stVal[0]"
-                },
-                {
-                  "FCDA": "XAT_BusA_P2>>Bay1_CB>Ctl_1>Bay1_CB/ PTRC 1.Op q (ST)",
-                  "ExtRef": "XAT_232_MU2>>Prot_BusbarTrip>EXT_ PSCH 1>TestExtIn;/Ind/q[0]"
-                }
-              ],
-              "supervision": "XAT_232_MU2>>ComSupervision_GOOSE> LGOS 2"
-            },
-            {
-              "name": "XAT_232_MU2>>CB>Ind_1",
-              "from": "XAT_232_MU2",
-              "to": "XAT_BusA_P2",
-              "type": "GSEControl",
-              "mappings": [
-                {
-                  "FCDA": "XAT_232_MU2>>CB>Ind_1>CB/ XCBR 4.Pos stVal (ST)",
-                  "ExtRef": "XAT_BusA_P2>>Bay1_CB> XCBR 4>RxPos1;/Pos/stVal[0]"
-                },
-                {
-                  "FCDA": "XAT_232_MU2>>CB>Ind_1>CB/ XCBR 4.Pos q (ST)",
-                  "ExtRef": "XAT_BusA_P2>>Bay1_CB> XCBR 4>RxPos1;/Pos/q[0]"
-                }
-              ],
-              "supervision": "XAT_BusA_P2>>ComSupervision_GOOSE> LGOS 1"
-            },
-            {
-              "name": "XAT_232_MU2>>PortF_MU1_Bus>MSVCB03",
-              "from": "XAT_232_MU2",
-              "to": "XAT_BusA_P2",
-              "type": "SampledValueControl",
-              "mappings": [
-                {
-                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01A TCTR 1.AmpSv instMag.i (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01A TCTR 1>AmpSv;TCTR/AmpSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01A TCTR 1.AmpSv q (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01A TCTR 1>AmpSv;TCTR/AmpSv/q[0]"
-                },
-                {
-                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01B TCTR 2.AmpSv instMag.i (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01B TCTR 2>AmpSv;TCTR/AmpSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01B TCTR 2.AmpSv q (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01B TCTR 2>AmpSv;TCTR/AmpSv/q[0]"
-                },
-                {
-                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01C TCTR 3.AmpSv instMag.i (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01C TCTR 3>AmpSv;TCTR/AmpSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01C TCTR 3.AmpSv q (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01C TCTR 3>AmpSv;TCTR/AmpSv/q[0]"
-                },
-                {
-                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01N TCTR 4.AmpSv instMag.i (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01N TCTR 4>AmpSv;TCTR/AmpSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_232_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseCT/I01N TCTR 4.AmpSv q (MX)",
-                  "ExtRef": "XAT_BusA_P2>>PowS_CT1>I01N TCTR 4>AmpSv;TCTR/AmpSv/q[0]"
-                }
-              ],
-              "supervision": "XAT_BusA_P2>>ComSupervision_SV> LSVS 1"
+              "supervision": "XAT_278_MU2>>ComSupervision_GOOSE> LGOS 1"
             },
             {
               "name": "XAT_288_MU2>>CB>Ind_1",
@@ -377,7 +449,7 @@
                   "ExtRef": "XAT_BusA_P2>>Bay14>B2B_ GAPC 1>Pos;/DPCSO/q[0]"
                 }
               ],
-              "supervision": "XAT_BusA_P2>>ComSupervision_GOOSE> LGOS 27"
+              "supervision": "XAT_BusA_P2>>ComSupervision_GOOSE> LGOS 29"
             },
             {
               "name": "XAT_288_MU2>>PortF_MU2_Station>MSVCB03",
@@ -411,72 +483,6 @@
                 }
               ],
               "supervision": "XAT_BusA_P2>>ComSupervision_SV> LSVS 15"
-            },
-            {
-              "name": "XAT_278_MU2>>PortF_MU1_Bus>MSVCB03",
-              "from": "XAT_278_MU2",
-              "to": "XAT_242_MU2",
-              "type": "SampledValueControl",
-              "mappings": [
-                {
-                  "FCDA": "XAT_278_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseVT/U01A TVTR 1.VolSv instMag.i (MX)",
-                  "ExtRef": "XAT_242_MU2>>PowS_NormalPhaseVT>U03A TVTR 1>VolSv;TVTR/VolSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_278_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseVT/U01A TVTR 1.VolSv q (MX)",
-                  "ExtRef": "XAT_242_MU2>>PowS_NormalPhaseVT>U03A TVTR 1>VolSv;TVTR/VolSv/q[0]"
-                },
-                {
-                  "FCDA": "XAT_278_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseVT/U01B TVTR 2.VolSv instMag.i (MX)",
-                  "ExtRef": "XAT_242_MU2>>PowS_NormalPhaseVT>U03B TVTR 2>VolSv;TVTR/VolSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_278_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseVT/U01B TVTR 2.VolSv q (MX)",
-                  "ExtRef": "XAT_242_MU2>>PowS_NormalPhaseVT>U03B TVTR 2>VolSv;TVTR/VolSv/q[0]"
-                },
-                {
-                  "FCDA": "XAT_278_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseVT/U01C TVTR 3.VolSv instMag.i (MX)",
-                  "ExtRef": "XAT_242_MU2>>PowS_NormalPhaseVT>U03C TVTR 3>VolSv;TVTR/VolSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_278_MU2>>PortF_MU1_Bus>PhsMeas3>PowS_PhaseVT/U01C TVTR 3.VolSv q (MX)",
-                  "ExtRef": "XAT_242_MU2>>PowS_NormalPhaseVT>U03C TVTR 3>VolSv;TVTR/VolSv/q[0]"
-                }
-              ],
-              "supervision": "XAT_242_MU2>>ComSupervision_SV>NORMVT_ LSVS 1"
-            },
-            {
-              "name": "XAT_288_MU2>>PortF_MU2_Station>MSVCB03",
-              "from": "XAT_288_MU2",
-              "to": "XAT_242_MU2",
-              "type": "SampledValueControl",
-              "mappings": [
-                {
-                  "FCDA": "XAT_288_MU2>>PortF_MU2_Station>PhsMeas3>PowS_PhaseVT/U01A TVTR 1.VolSv instMag.i (MX)",
-                  "ExtRef": "XAT_242_MU2>>PowS_AltPhaseVT>U02A TVTR 1>VolSv;TVTR/VolSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_288_MU2>>PortF_MU2_Station>PhsMeas3>PowS_PhaseVT/U01A TVTR 1.VolSv q (MX)",
-                  "ExtRef": "XAT_242_MU2>>PowS_AltPhaseVT>U02A TVTR 1>VolSv;TVTR/VolSv/q[0]"
-                },
-                {
-                  "FCDA": "XAT_288_MU2>>PortF_MU2_Station>PhsMeas3>PowS_PhaseVT/U01B TVTR 2.VolSv instMag.i (MX)",
-                  "ExtRef": "XAT_242_MU2>>PowS_AltPhaseVT>U02B TVTR 2>VolSv;TVTR/VolSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_288_MU2>>PortF_MU2_Station>PhsMeas3>PowS_PhaseVT/U01B TVTR 2.VolSv q (MX)",
-                  "ExtRef": "XAT_242_MU2>>PowS_AltPhaseVT>U02B TVTR 2>VolSv;TVTR/VolSv/q[0]"
-                },
-                {
-                  "FCDA": "XAT_288_MU2>>PortF_MU2_Station>PhsMeas3>PowS_PhaseVT/U01C TVTR 3.VolSv instMag.i (MX)",
-                  "ExtRef": "XAT_242_MU2>>PowS_AltPhaseVT>U02C TVTR 3>VolSv;TVTR/VolSv/instMag.i[0]"
-                },
-                {
-                  "FCDA": "XAT_288_MU2>>PortF_MU2_Station>PhsMeas3>PowS_PhaseVT/U01C TVTR 3.VolSv q (MX)",
-                  "ExtRef": "XAT_242_MU2>>PowS_AltPhaseVT>U02C TVTR 3>VolSv;TVTR/VolSv/q[0]"
-                }
-              ],
-              "supervision": "XAT_242_MU2>>ComSupervision_SV>ALTVT_ LSVS 1"
             }
           ]
         }

@@ -6,7 +6,7 @@ import {
 } from '@openenergytools/scl-lib';
 
 type Mapping = {
-  FCDA: string | undefined;
+  FCDA: string;
   ExtRef: string;
 };
 

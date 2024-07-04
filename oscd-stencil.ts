@@ -27,7 +27,8 @@ import type { SelectionList } from '@openenergytools/filterable-lists/dist/selec
 import type { MdIconButton } from '@material/web/iconbutton/icon-button.js';
 import type { MdMenu } from '@material/web/menu/menu';
 
-import { find } from '@openenergytools/scl-lib';
+import { Connection, find, subscribe } from '@openenergytools/scl-lib';
+import { newEditEvent } from '@openscd/open-scd-core';
 import defaultStencil from './default_stencil.json' with { type: 'json' };
 
 import {
@@ -66,6 +67,10 @@ type StencilData = {
   version: string;
   applications: VersionedApplications[];
 };
+
+function newIedIdentity(newFromIed: string | undefined, id: string): string {
+  return `${newFromIed}${id.substring(id.indexOf('>'))}`;
+}
 
 /**
  * A plugin to allow templates of GOOSE and SV using the
@@ -260,16 +265,19 @@ export default class Stencil extends LitElement {
 
   // eslint-disable-next-line class-methods-use-this
   applyStencil() {
+    const errorText: string[] = [];
+    let subscriptionsCount = 0;
+
     const usedFunctionCombinations = [
       ...combinations([...this.functionToIed.keys()], 2)
     ];
     usedFunctionCombinations.forEach((combo: string[]) => {
       const fn1 = combo[0];
       const fn2 = combo[1];
-      const fn1Info = this.selectedAppVersion!.IEDS[combo[0]];
-      const fn2Info = this.selectedAppVersion!.IEDS[combo[1]];
-      const newIed1Name = this.functionToIed.get(combo[0]);
-      const newIed2Name = this.functionToIed.get(combo[1]);
+      const fn1Info = this.selectedAppVersion!.IEDS[fn1];
+      const fn2Info = this.selectedAppVersion!.IEDS[fn2];
+      const newIed1Name = this.functionToIed.get(fn1)!;
+      const newIed2Name = this.functionToIed.get(fn2)!;
 
       this.selectedAppVersion?.ControlBlocks.filter(
         cb =>
@@ -281,14 +289,59 @@ export default class Stencil extends LitElement {
           cb.from === fn1Info.originalName ? newIed1Name : newIed2Name;
         const newToIed =
           cb.to === fn1Info.originalName ? newIed1Name : newIed2Name;
-        const newCb = find(
-          this.doc,
-          cb.type,
-          `${newFromIed}${cb.name.substring(cb.name.indexOf('>'))}`
+
+        const newCbId = newIedIdentity(newFromIed, cb.name);
+
+        const newCb = find(this.doc, cb.type, newCbId);
+
+        if (!newCb) {
+          errorText.push(`Could not find CB: ${newCbId}`);
+          return;
+        }
+
+        const cbSubscriptions = cb.mappings
+          .map(mapping => {
+            const newSourceId = newIedIdentity(newFromIed, mapping.FCDA);
+            const newSource = find(this.doc, 'FCDA', newSourceId);
+
+            if (!newSource) {
+              errorText.push(`Could not find FCDA: ${newSourceId}`);
+              return null;
+            }
+
+            const newSinkId = newIedIdentity(newToIed, mapping.ExtRef);
+            const newSink = find(this.doc, 'ExtRef', newSinkId);
+
+            if (!newSink) {
+              errorText.push(`Could not find ExtRef: ${newSinkId}`);
+              return null;
+            }
+
+            return {
+              sink: newSink,
+              source: {
+                fcda: newSource,
+                controlBlock: newCb
+              }
+            };
+          })
+          .flatMap(mapping => (mapping ? [mapping] : [])) as Connection[];
+        subscriptionsCount += cbSubscriptions.length;
+        this.dispatchEvent(
+          newEditEvent(
+            subscribe(cbSubscriptions, {
+              force: true,
+              ignoreSupervision: true,
+              checkOnlyBType: true
+            })
+          )
         );
-        console.log(newCb);
       });
     });
+
+    if (errorText) console.warn(errorText);
+    if (errorText)
+      console.info(`Hurrah, we have done in one click ${subscriptionsCount}`);
   }
 
   updated(): void {
@@ -332,6 +385,21 @@ export default class Stencil extends LitElement {
     );
     return html`<md-dialog
       id="ied-function-selector-dialog"
+      @close=${() => {
+        if (this.applicationSelectedFunction && this.applicationSelectedIed) {
+          const iedName = this.applicationSelectedIed.getAttribute('name')!;
+          this.functionToIed.set(this.applicationSelectedFunction, iedName);
+        }
+        if (
+          this.applicationSelectedFunction &&
+          this.iedSelectorUI.returnValue === 'reset'
+        ) {
+          this.functionToIed.delete(this.applicationSelectedFunction);
+        }
+        this.applicationSelectedFunction = null;
+        this.applicationSelectedIed = null;
+        this.applicationSelectedFunctionReqs = null;
+      }}
       @cancel=${(event: Event) => {
         event.preventDefault();
       }}
@@ -344,7 +412,7 @@ export default class Stencil extends LitElement {
           id="action-list"
           filterable
           .items=${!items
-            ? {}
+            ? []
             : Array.from(items)
                 .filter(ied => {
                   const id = ied.querySelector(
