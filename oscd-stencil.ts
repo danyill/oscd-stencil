@@ -799,14 +799,14 @@ export default class Stencil extends LitElement {
               const bDir = getMappingInfo(this.doc, iedPairs[1]!, iedPairs[0]!);
               this.iedMappingStencilData.push(...bDir);
 
-              Array.from(aDir.values()).forEach((val: ControlBlockInfo) => {
+              aDir.forEach((val: ControlBlockInfo) => {
                 if (!this.uniqueIeds.includes(val.to))
                   this.uniqueIeds.push(val.to);
                 if (!this.uniqueIeds.includes(val.to))
                   this.uniqueIeds.push(val.from);
               });
 
-              Array.from(bDir.values()).forEach((val: ControlBlockInfo) => {
+              bDir.forEach((val: ControlBlockInfo) => {
                 if (!this.uniqueIeds.includes(val.to))
                   this.uniqueIeds.push(val.to);
                 if (!this.uniqueIeds.includes(val.to))
