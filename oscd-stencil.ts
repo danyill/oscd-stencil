@@ -151,7 +151,7 @@ export default class Stencil extends LitElement {
     this.stencilData = defaultStencil;
   }
 
-  saveStencil() {
+  addApplication() {
     // need to do some validation
 
     const iedNameMapping = new Map<string, string>();
@@ -199,7 +199,9 @@ export default class Stencil extends LitElement {
         }
       ]
     };
+  }
 
+  downloadStencil() {
     const outputText = JSON.stringify(this.stencilData, null, 2);
     this.outputStencilUI.value = outputText;
 
@@ -716,7 +718,7 @@ export default class Stencil extends LitElement {
       <md-filled-button
         class="button"
         ?disabled=${this.uniqueIeds.length === 0}
-        @click=${() => this.saveStencil()}
+        @click=${() => this.addApplication()}
         >Add Application
         <md-icon slot="icon">draw_collage</md-icon>
       </md-filled-button>
@@ -725,11 +727,17 @@ export default class Stencil extends LitElement {
           id="output"
           type="textarea"
           label="Stencil Output File"
-          value="${JSON.stringify(this.stencilData, null, 2)}"
+          value=${JSON.stringify(this.stencilData, null, 2)}
+          @change=${(event: Event) => {
+            if (event.target)
+              this.stencilData = JSON.parse((<TextField>event.target).value);
+          }}
           rows="10"
         >
         </md-outlined-text-field>
-        <md-outlined-button class="button" @click=${() => this.saveStencil()}
+        <md-outlined-button
+          class="button"
+          @click=${() => this.downloadStencil()}
           >Download
           <md-icon slot="icon">download</md-icon>
         </md-outlined-button>
