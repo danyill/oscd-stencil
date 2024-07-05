@@ -14501,7 +14501,7 @@ class Stencil extends s$b {
         this.showDeprecated = false;
         this.stencilData = defaultStencil;
     }
-    saveStencil() {
+    addApplication() {
         // need to do some validation
         var _a, _b;
         const iedNameMapping = new Map();
@@ -14541,6 +14541,8 @@ class Stencil extends s$b {
                 }
             ]
         };
+    }
+    downloadStencil() {
         const outputText = JSON.stringify(this.stencilData, null, 2);
         this.outputStencilUI.value = outputText;
         const blob = new Blob([outputText], {
@@ -14976,7 +14978,7 @@ class Stencil extends s$b {
       <md-filled-button
         class="button"
         ?disabled=${this.uniqueIeds.length === 0}
-        @click=${() => this.saveStencil()}
+        @click=${() => this.addApplication()}
         >Add Application
         <md-icon slot="icon">draw_collage</md-icon>
       </md-filled-button>
@@ -14985,11 +14987,17 @@ class Stencil extends s$b {
           id="output"
           type="textarea"
           label="Stencil Output File"
-          value="${JSON.stringify(this.stencilData, null, 2)}"
+          value=${JSON.stringify(this.stencilData, null, 2)}
+          @change=${(event) => {
+            if (event.target)
+                this.stencilData = JSON.parse(event.target.value);
+        }}
           rows="10"
         >
         </md-outlined-text-field>
-        <md-outlined-button class="button" @click=${() => this.saveStencil()}
+        <md-outlined-button
+          class="button"
+          @click=${() => this.downloadStencil()}
           >Download
           <md-icon slot="icon">download</md-icon>
         </md-outlined-button>
@@ -15043,13 +15051,13 @@ class Stencil extends s$b {
                 // B to A
                 const bDir = getMappingInfo(this.doc, iedPairs[1], iedPairs[0]);
                 this.iedMappingStencilData.push(...bDir);
-                Array.from(aDir.values()).forEach((val) => {
+                aDir.forEach((val) => {
                     if (!this.uniqueIeds.includes(val.to))
                         this.uniqueIeds.push(val.to);
                     if (!this.uniqueIeds.includes(val.to))
                         this.uniqueIeds.push(val.from);
                 });
-                Array.from(bDir.values()).forEach((val) => {
+                bDir.forEach((val) => {
                     if (!this.uniqueIeds.includes(val.to))
                         this.uniqueIeds.push(val.to);
                     if (!this.uniqueIeds.includes(val.to))

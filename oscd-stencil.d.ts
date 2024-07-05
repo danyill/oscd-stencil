@@ -83,7 +83,8 @@ export default class Stencil extends LitElement {
     menuAppUI: MdMenu;
     functionIedNamesUI: TextField[];
     constructor();
-    saveStencil(): void;
+    addApplication(): void;
+    downloadStencil(): void;
     clearStencilCreateData(): void;
     clearIedTemplateSelection(): void;
     loadStencil(event: Event): Promise<void>;
