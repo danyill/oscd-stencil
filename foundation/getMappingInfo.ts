@@ -58,11 +58,6 @@ function findSupervision(cb: Element, ied: Element): Element | undefined {
   );
 }
 
-function identityStr(element: Element | null): string {
-  if (element === null) return 'NONE';
-  return `${identity(element)}`;
-}
-
 function identityNoIed(element: Element | null, iedName: string): string {
   if (element === null) return 'NONE';
   return `${identity(element)}`.substring(iedName.length);
