@@ -29,7 +29,6 @@ import type { MdMenu } from '@material/web/menu/menu';
 
 import { Connection, find, subscribe } from '@openenergytools/scl-lib';
 import { newEditEvent } from '@openscd/open-scd-core';
-import defaultStencil from './default_stencil.json' with { type: 'json' };
 
 import {
   ControlBlockInfo,
@@ -37,6 +36,10 @@ import {
 } from './foundation/getMappingInfo.js';
 import { combinations } from './combinations.js';
 import { getIedDescription } from './getIedDescription.js';
+
+const defaultStencil = await fetch(
+  new URL('./default_stencil.json', import.meta.url)
+).then(res => res.json());
 
 type IED = {
   originalName: string;
@@ -211,7 +214,9 @@ export default class Stencil extends LitElement {
         }
       ]
     };
+  }
 
+  downloadStencil() {
     const outputText = JSON.stringify(this.stencilData, null, 2);
     this.outputStencilUI.value = outputText;
   }
