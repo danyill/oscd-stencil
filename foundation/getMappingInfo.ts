@@ -11,6 +11,7 @@ type Mapping = {
 };
 
 export type ControlBlockInfo = {
+  id: string;
   name: string;
   from: string;
   to: string;
@@ -62,6 +63,11 @@ function identityStr(element: Element | null): string {
   return `${identity(element)}`;
 }
 
+function identityNoIed(element: Element | null, iedName: string): string {
+  if (element === null) return 'NONE';
+  return `${identity(element)}`.substring(iedName.length);
+}
+
 // function identityNoIed(element: Element | null): string {
 //     if (element === null) return 'NONE';
 //     const id = `${identity(element)}`;
@@ -89,20 +95,21 @@ export function getMappingInfo(
           isSubscribed(extRef)
       )
       .map(extRef => ({
-        FCDA: identityStr(getFCDA(cb, extRef) ?? null),
-        ExtRef: identityStr(extRef)
+        FCDA: identityNoIed(getFCDA(cb, extRef) ?? null, fromName),
+        ExtRef: identityNoIed(extRef, toName)
       }));
     if (extRefMappings.length) {
       const toIed = doc.querySelector(`:root > IED[name="${toName}"`)!;
       const supLn = findSupervision(cb, toIed) ?? null;
 
       cbMappings.push({
-        name: `${identityStr(cb)}`,
+        id: `${identityNoIed(cb, fromName)}`,
+        name: cb.getAttribute('name')!,
         from: fromName,
         to: toName,
         type: cb.tagName,
         mappings: extRefMappings,
-        supervision: supLn ? `${identityStr(supLn)}` : 'None'
+        supervision: supLn ? `${identityNoIed(supLn, toName)}` : 'None'
       });
     }
   });
