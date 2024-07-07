@@ -1,0 +1,154 @@
+{
+  "description": "Transpower Stencil",
+  "version": "1.0.0",
+  "applications": [
+    {
+      "category": "Bus Protection",
+      "name": "B2B Coupler to MUs (7SS85 <> 6MU85)",
+      "description": "Configure MUs and Bus Protection",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "description": "Up to 6 bays",
+          "deprecated": false,
+          "IEDS": {
+            "Bus Protection": {
+              "originalName": "XAT_BusA_P2",
+              "type": "7SS85",
+              "manufacturer": "SIEMENS",
+              "privates": [
+                {
+                  "OpenSCD-Stencil-Id": "7SS85-B2B-DCB-Coupler",
+                  "OpenSCD-Stencil-Version": "1.0.0"
+                }
+              ]
+            },
+            "Bay 1": {
+              "originalName": "XAT_232_MU2",
+              "type": "6MU85",
+              "manufacturer": "SIEMENS",
+              "privates": [
+                {
+                  "OpenSCD-Stencil-Id": "6MU85-TxLine",
+                  "OpenSCD-Stencil-Version": "1.0.0"
+                }
+              ]
+            },
+            "Bay 2": {
+              "originalName": "XAT_242_MU2",
+              "type": "6MU85",
+              "manufacturer": "SIEMENS",
+              "privates": [
+                {
+                  "OpenSCD-Stencil-Id": "6MU85-TxLine",
+                  "OpenSCD-Stencil-Version": "1.0.0"
+                }
+              ]
+            },
+            "Bay 3": {
+              "originalName": "XAT_B3_MU2",
+              "type": "6MU85",
+              "manufacturer": "SIEMENS",
+              "comment": "copy-paste",
+              "privates": [
+                {
+                  "OpenSCD-Stencil-Id": "6MU85-TxLine",
+                  "OpenSCD-Stencil-Version": "1.0.0"
+                }
+              ]
+            },
+            "Bay 4": {
+              "originalName": "XAT_B4_MU2",
+              "type": "6MU85",
+              "manufacturer": "SIEMENS",
+              "comment": "copy-paste",
+              "privates": [
+                {
+                  "OpenSCD-Stencil-Id": "6MU85-TxLine",
+                  "OpenSCD-Stencil-Version": "1.0.0"
+                }
+              ]
+            },
+            "Bay 5": {
+              "originalName": "XAT_B5_MU2",
+              "type": "6MU85",
+              "manufacturer": "SIEMENS",
+              "comment": "copy-paste",
+              "privates": [
+                {
+                  "OpenSCD-Stencil-Id": "6MU85-TxLine",
+                  "OpenSCD-Stencil-Version": "1.0.0"
+                }
+              ]
+            },
+            "Bay 6": {
+              "originalName": "XAT_B6_MU2",
+              "type": "6MU85",
+              "manufacturer": "SIEMENS",
+              "comment": "copy-paste",
+              "privates": [
+                {
+                  "OpenSCD-Stencil-Id": "6MU85-TxLine",
+                  "OpenSCD-Stencil-Version": "1.0.0"
+                }
+              ]
+            },
+            "Coupler": {
+              "originalName": "XAT_278_MU2",
+              "type": "6MU85",
+              "manufacturer": "SIEMENS",
+              "privates": [
+                {
+                  "OpenSCD-Stencil-Id": "6MU85-Coupler",
+                  "OpenSCD-Stencil-Version": "1.0.0"
+                }
+              ]
+            },
+            "Adjacent Bus Protection": {
+              "originalName": "XAT_BusB_P2",
+              "type": "7SS85",
+              "manufacturer": "SIEMENS",
+              "privates": [
+                {
+                  "OpenSCD-Stencil-Id": "7SS85-B2B-DCB-Coupler",
+                  "OpenSCD-Stencil-Version": "1.0.0"
+                }
+              ]
+            },
+            "Adjacent Coupler": {
+              "originalName": "XAT_288_MU2",
+              "type": "6MU85",
+              "manufacturer": "SIEMENS",
+              "privates": [
+                {
+                  "OpenSCD-Stencil-Id": "6MU85-Coupler",
+                  "OpenSCD-Stencil-Version": "1.0.0"
+                }
+              ]
+            }
+          },
+          "ControlBlocks": [
+            {
+              "id": "XAT_BusB_P2>>Bay14_CB>TripCBFail",
+              "name": "",
+              "from": "XAT_BusB_P2",
+              "to": "XAT_BusA_P2",
+              "type": "GSEControl",
+              "mappings": [
+                {
+                  "FCDA": "XAT_BusB_P2>>Bay14_CB>TripCBFail>Bay14_CB/ PTRC 1.Op general (ST)",
+                  "ExtRef": "XAT_BusA_P2>>Bay14_CB> RBRF 1>InitCBfail;/Ind/stVal[0]"
+                },
+                {
+                  "FCDA": "XAT_BusB_P2>>Bay14_CB>TripCBFail>Bay14_CB/ PTRC 1.Op q (ST)",
+                  "ExtRef": "XAT_BusA_P2>>Bay14_CB> RBRF 1>InitCBfail;/Ind/q[0]"
+                }
+              ],
+              "supervision": "XAT_BusA_P2>>ComSupervision_GOOSE> LGOS 28"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -24,6 +24,7 @@ type IED = {
     originalName: string;
     type: string;
     manufacturer: string;
+    comment?: string;
     privates: {
         'OpenSCD-Stencil-Id': string;
         'OpenSCD-Stencil-Version': string;
@@ -31,9 +32,15 @@ type IED = {
 };
 type Application = {
     version: string;
+    description: string;
     deprecated: boolean;
     IEDS: Record<string, IED>;
     ControlBlocks: ControlBlockInfo[];
+};
+type ControlBlockTableMapping = {
+    id: string;
+    from: string;
+    to: string;
 };
 type VersionedApplications = {
     category: string;
@@ -66,12 +73,15 @@ export default class Stencil extends LitElement {
     functionToIed: Map<string, string>;
     createEventListeners: boolean;
     showDeprecated: boolean;
+    templateCreationStage: number;
+    createCBsToRemove: ControlBlockTableMapping[];
     tabBarUI: TabBar;
     outputStencilUI: TextField;
     appCategory: TextField;
     appName: TextField;
     appDesc: TextField;
     appVer: TextField;
+    appVerDesc: TextField;
     appDeprecated: MdCheckbox;
     stencilDesc: TextField;
     stencilVersion: TextField;
@@ -85,6 +95,7 @@ export default class Stencil extends LitElement {
     constructor();
     addApplication(): void;
     downloadStencil(): void;
+    saveStencilAsFile(): void;
     clearStencilCreateData(): void;
     clearIedTemplateSelection(): void;
     loadStencil(event: Event): Promise<void>;
@@ -94,8 +105,12 @@ export default class Stencil extends LitElement {
     renderFunctionIedSelector(): TemplateResult;
     renderIedsForUse(): TemplateResult;
     renderUse(): TemplateResult;
+    renderCbSelectionTable(): TemplateResult;
+    renderIedsToFunctionNaming(): TemplateResult;
+    renderOutputJSON(): TemplateResult;
     renderCreate(): TemplateResult;
     renderTemplateIedsSelector(): TemplateResult;
+    renderView(): TemplateResult;
     render(): TemplateResult;
     static styles: import("lit").CSSResult;
 }

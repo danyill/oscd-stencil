@@ -14394,10 +14394,10 @@ function findSupervision(cb, ied) {
     return ((_b = (_a = Array.from(ied.querySelectorAll(`LN[lnClass="${lnClass}"] > DOI[name="${cbRefType}"] > DAI[name="setSrcRef"] > Val`))
         .find(val => val.textContent === controlBlockObjRef(cb))) === null || _a === void 0 ? void 0 : _a.closest('LN')) !== null && _b !== void 0 ? _b : undefined);
 }
-function identityStr(element) {
+function identityNoIed(element, iedName) {
     if (element === null)
         return 'NONE';
-    return `${identity(element)}`;
+    return `${identity(element)}`.substring(iedName.length);
 }
 // function identityNoIed(element: Element | null): string {
 //     if (element === null) return 'NONE';
@@ -14416,20 +14416,21 @@ function getMappingInfo(doc, fromName, toName) {
             .map(extRef => {
             var _a;
             return ({
-                FCDA: identityStr((_a = getFCDA(cb, extRef)) !== null && _a !== void 0 ? _a : null),
-                ExtRef: identityStr(extRef)
+                FCDA: identityNoIed((_a = getFCDA(cb, extRef)) !== null && _a !== void 0 ? _a : null, fromName),
+                ExtRef: identityNoIed(extRef, toName)
             });
         });
         if (extRefMappings.length) {
             const toIed = doc.querySelector(`:root > IED[name="${toName}"`);
             const supLn = (_a = findSupervision(cb, toIed)) !== null && _a !== void 0 ? _a : null;
             cbMappings.push({
-                name: `${identityStr(cb)}`,
+                id: `${identityNoIed(cb, fromName)}`,
+                name: cb.getAttribute('name'),
                 from: fromName,
                 to: toName,
                 type: cb.tagName,
                 mappings: extRefMappings,
-                supervision: supLn ? `${identityStr(supLn)}` : 'None'
+                supervision: supLn ? `${identityNoIed(supLn, toName)}` : 'None'
             });
         }
     });
@@ -14477,9 +14478,9 @@ function getIedDescription(ied) {
     return { firstLine, secondLine };
 }
 
-const defaultStencil = await fetch(new URL(new URL('assets/default_stencil-d8dca66a.json', import.meta.url).href, import.meta.url)).then(res => res.json());
-function newIedIdentity(newFromIed, id) {
-    return `${newFromIed}${id.substring(id.indexOf('>'))}`;
+const defaultStencil = await fetch(new URL(new URL('assets/default_stencil-38e514c8.json', import.meta.url).href, import.meta.url)).then(res => res.json());
+function newIedIdentity(iedName, id) {
+    return `${iedName}${id}`;
 }
 /**
  * A plugin to allow templates of GOOSE and SV using the
@@ -14499,11 +14500,14 @@ class Stencil extends s$b {
         this.functionToIed = new Map();
         this.createEventListeners = false;
         this.showDeprecated = false;
+        this.templateCreationStage = 0;
+        this.createCBsToRemove = [];
         this.stencilData = defaultStencil;
     }
     addApplication() {
-        // need to do some validation
         var _a, _b;
+        // need to do some validation
+        this.templateCreationStage = 3;
         const iedNameMapping = new Map();
         this.functionIedNamesUI.forEach(textField => iedNameMapping.set(textField.dataset.ied, textField.value));
         const ieds = new Map();
@@ -14533,6 +14537,7 @@ class Stencil extends s$b {
                     versions: [
                         {
                             version: this.appVer.value,
+                            description: this.appVerDesc.value,
                             deprecated: this.appDeprecated.checked,
                             IEDS: Object.fromEntries(ieds),
                             ControlBlocks: this.iedMappingStencilData
@@ -14545,7 +14550,9 @@ class Stencil extends s$b {
     downloadStencil() {
         const outputText = JSON.stringify(this.stencilData, null, 2);
         this.outputStencilUI.value = outputText;
-        const blob = new Blob([outputText], {
+    }
+    saveStencilAsFile() {
+        const blob = new Blob([this.outputStencilUI.value], {
             type: 'application/xml'
         });
         const a = document.createElement('a');
@@ -14609,7 +14616,7 @@ class Stencil extends s$b {
                 (cb.to === fn1Info.originalName && cb.from === fn2Info.originalName)).forEach(cb => {
                 const newFromIed = cb.from === fn1Info.originalName ? newIed1Name : newIed2Name;
                 const newToIed = cb.to === fn1Info.originalName ? newIed1Name : newIed2Name;
-                const newCbId = newIedIdentity(newFromIed, cb.name);
+                const newCbId = newIedIdentity(newFromIed, cb.id);
                 const newCb = find(this.doc, cb.type, newCbId);
                 if (!newCb) {
                     errorText.push(`Could not find CB: ${newCbId}`);
@@ -14754,7 +14761,10 @@ class Stencil extends s$b {
             <h2>${this.selectedApplication.category}</h2>
             <div style="padding-left:30px;">
               <h3>${this.selectedApplication.name}</h3>
-              <p>${(_a = this.selectedApplication) === null || _a === void 0 ? void 0 : _a.description}</p>
+              <p>
+                ${(_a = this.selectedApplication) === null || _a === void 0 ? void 0 : _a.description} -
+                ${this.selectedAppVersion.description}
+              </p>
             </div>
             <h2>Select IEDs for Function</h2>
             <md-list id="iedsAndFunctions">
@@ -14822,6 +14832,7 @@ class Stencil extends s$b {
             ${this.stencilData.applications
             .filter(app => app.category === appCategory)
             .flatMap(app => {
+            var _a, _b;
             if (this.showDeprecated === false)
                 this.selectedAppVersion = app.versions.find(appVer => appVer.deprecated === false);
             return x$1 `<md-list-item
@@ -14842,7 +14853,12 @@ class Stencil extends s$b {
                   data-name="${app.name}"
                 >
                   <div slot="headline">${app.name}</div>
-                  <div slot="supporting-text">${app.description}</div>
+                  <div slot="supporting-text">
+                    ${app.description}${((_a = this.selectedAppVersion) === null || _a === void 0 ? void 0 : _a.description) ===
+                undefined
+                ? ''
+                : ` - ${(_b = this.selectedAppVersion) === null || _b === void 0 ? void 0 : _b.description}`}
+                  </div>
                   <div slot="trailing-supporting-text">
                     ${this.selectedAppVersion
                 ? this.selectedAppVersion.version
@@ -14916,12 +14932,183 @@ class Stencil extends s$b {
       />
     `;
     }
+    renderCbSelectionTable() {
+        const processedIeds = new Map();
+        this.iedMappingStencilData.forEach(cb => {
+            const existingCbs = processedIeds.get(cb.from);
+            if (existingCbs && !existingCbs.includes(cb.id)) {
+                existingCbs.push(cb.id);
+                processedIeds.set(cb.from, existingCbs);
+            }
+            else {
+                processedIeds.set(cb.from, [cb.id]);
+            }
+        });
+        const toIedNames = this.iedMappingStencilData
+            .map(cb => cb.to)
+            .filter((item, i, ar) => ar.indexOf(item) === i)
+            .sort();
+        const rowIedNames = this.iedMappingStencilData
+            .map(cb => cb.from)
+            .filter((item, i, ar) => ar.indexOf(item) === i)
+            .sort();
+        const rowInfo = rowIedNames.flatMap(iedName => ({
+            ied: iedName,
+            cbs: processedIeds.get(iedName)
+        }));
+        return x$1 `<h1>Select Template Control Blocks</h1>
+      <div class="group">
+        <table>
+          <caption>
+            Control Block Mappings
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col"></th>
+              <th scope="col" colspan="${toIedNames.length}">To</th>
+            </tr>
+            <tr>
+              <th scope="col">From</th>
+              ${toIedNames.map(iedName => x$1 ` <th class="stay" scope="col">${iedName}</th> `)}
+            </tr>
+          </thead>
+          <tbody>
+            ${rowInfo.map(row => x$1 `<tr>
+                    <th scope="row" class="iedname">${row.ied}</th>
+                    <th scope="row" colspan="${toIedNames.length}"></th>
+                  </tr>
+                  ${row.cbs.map(cbName => x$1 `<tr>
+                        <th
+                          scope="row"
+                          class="cbname"
+                          data-fromIed="${row.ied}"
+                          data-fromCb="${cbName.substring(2)}"
+                        >
+                          ${cbName}
+                        </th>
+                        ${toIedNames.map(toIed => {
+            const mapped = this.iedMappingStencilData.find(cb => cb.id === cbName &&
+                cb.from === row.ied &&
+                cb.to === toIed);
+            return x$1 `<td class="${mapped ? 'mapcell' : ''}">
+                            ${mapped && this.templateCreationStage < 2
+                ? x$1 `<md-checkbox
+                                  data-fromIed="${row.ied}"
+                                  data-fromCb="${cbName}"
+                                  data-toIed="${toIed}"
+                                  touch-target="wrapper"
+                                  ?checked=${true}
+                                  @change=${(event) => {
+                    // eslint-disable-next-line prefer-destructuring
+                    const target = event.target;
+                    const { fromcb, fromied, toied } = target.dataset;
+                    const cbObject = {
+                        id: fromcb,
+                        from: fromied,
+                        to: toied
+                    };
+                    if (
+                    // we use true to remove because the UI
+                    // update has not yet happened
+                    target.checked === true) {
+                        this.createCBsToRemove =
+                            this.createCBsToRemove.filter(cb => cb.id === cbObject.id &&
+                                cb.from === cbObject.from &&
+                                cb.to === cbObject.to);
+                    }
+                    else if (target.checked === false) {
+                        this.createCBsToRemove.push(cbObject);
+                    }
+                    console.log(this.createCBsToRemove);
+                }}
+                                ></md-checkbox>`
+                : T$1}
+                            ${mapped && this.templateCreationStage >= 2
+                ? x$1 `✅︎`
+                : T$1}
+                          </td>`;
+        })}
+                      </tr>`)}`)}
+          </tbody>
+        </table>
+      </div>
+      <md-filled-button
+        class="button"
+        ?disabled=${this.iedMappingStencilData.length === 0}
+        @click=${() => {
+            this.templateCreationStage = 2;
+            // remove unused control blocks
+            // TODO: Does this suggest my data structure is bad?
+            this.iedMappingStencilData = this.iedMappingStencilData.filter(cbInf => !this.createCBsToRemove.find(cb => cb.id === cbInf.id &&
+                cb.from === cbInf.from &&
+                cb.to === cbInf.to));
+            // now generate list of remaining IEDs for naming
+            this.iedMappingStencilData.forEach((val) => {
+                if (!this.uniqueIeds.includes(val.to))
+                    this.uniqueIeds.push(val.to);
+                if (!this.uniqueIeds.includes(val.from))
+                    this.uniqueIeds.push(val.from);
+            });
+        }}
+        >Name IEDs for Functions
+        <md-icon slot="icon">draw_collage</md-icon>
+      </md-filled-button> `;
+    }
+    renderIedsToFunctionNaming() {
+        return x$1 `<h1>Name IEDs with Functions</h1>
+      <div class="group appinf" id="function">
+        ${this.uniqueIeds.map(ied => x$1 `<md-outlined-text-field
+              class="iedfunction"
+              data-ied="${ied}"
+              label="IED Function (was ${ied})"
+              value="${ied}"
+            ></md-outlined-text-field>`)}
+      </div>
+      <md-filled-button
+        class="button"
+        ?disabled=${this.uniqueIeds.length === 0}
+        @click=${() => this.addApplication()}
+        >Add Application
+        <md-icon slot="icon">draw_collage</md-icon>
+      </md-filled-button>`;
+    }
+    renderOutputJSON() {
+        return x$1 `<div class="output">
+      <md-outlined-text-field
+        id="output"
+        type="textarea"
+        label="Stencil Output File"
+        value="${JSON.stringify(this.stencilData, null, 2)}"
+        rows="10"
+      >
+      </md-outlined-text-field>
+      <md-outlined-button
+        class="button"
+        @click=${() => this.saveStencilAsFile()}
+        >Download
+        <md-icon slot="icon">download</md-icon>
+      </md-outlined-button>
+    </div>`;
+    }
     renderCreate() {
         this.createEventListeners = false;
         if (!this.doc)
             return x$1 `<h1>Please open a file to use this functionality</h1>`;
         return x$1 `
-      <h1>Enter Stencil Data</h1>
+      <h1>
+        Enter Stencil Data
+        <md-outlined-button
+          class="button"
+          @click=${() => {
+            this.templateCreationStage = 0;
+            this.iedMappingStencilData = [];
+            this.uniqueIeds = [];
+            this.createCBsToRemove = [];
+        }}
+          >Reset Template
+          <md-icon slot="icon">draw_collage</md-icon>
+        </md-outlined-button>
+      </h1>
       <div class="group appinf">
         <md-outlined-text-field
           id="stendesc"
@@ -14952,7 +15139,16 @@ class Stencil extends s$b {
           value="Configure MUs and Bus Protection"
         >
         </md-outlined-text-field>
-        <md-outlined-text-field id="appver" label="Version" value="1.0.0">
+        <md-outlined-text-field
+          id="appver"
+          label="Version"
+          value="1.0.0"
+        ></md-outlined-text-field>
+        <md-outlined-text-field
+          id="appverdesc"
+          label="Version Description"
+          value="Something version specific"
+        >
         </md-outlined-text-field>
         <label id="deprecated">
           <md-checkbox id="appdeprecated" touch-target="wrapper"></md-checkbox>
@@ -14967,41 +15163,13 @@ class Stencil extends s$b {
           <md-icon slot="icon">developer_board</md-icon>
         </md-filled-button>
       </div>
-      <div class="group appinf" id="function">
-        ${this.uniqueIeds.map(ied => x$1 `<md-outlined-text-field
-              class="iedfunction"
-              data-ied="${ied}"
-              label="IED Function (was ${ied})"
-              value="${ied}"
-            ></md-outlined-text-field>`)}
-      </div>
-      <md-filled-button
-        class="button"
-        ?disabled=${this.uniqueIeds.length === 0}
-        @click=${() => this.addApplication()}
-        >Add Application
-        <md-icon slot="icon">draw_collage</md-icon>
-      </md-filled-button>
-      <div class="output">
-        <md-outlined-text-field
-          id="output"
-          type="textarea"
-          label="Stencil Output File"
-          value=${JSON.stringify(this.stencilData, null, 2)}
-          @change=${(event) => {
-            if (event.target)
-                this.stencilData = JSON.parse(event.target.value);
-        }}
-          rows="10"
-        >
-        </md-outlined-text-field>
-        <md-outlined-button
-          class="button"
-          @click=${() => this.downloadStencil()}
-          >Download
-          <md-icon slot="icon">download</md-icon>
-        </md-outlined-button>
-      </div>
+      ${this.templateCreationStage >= 1
+            ? this.renderCbSelectionTable()
+            : T$1}
+      ${this.templateCreationStage >= 2
+            ? this.renderIedsToFunctionNaming()
+            : T$1}
+      ${this.templateCreationStage >= 3 ? this.renderOutputJSON() : T$1}
     `;
     }
     renderTemplateIedsSelector() {
@@ -15051,19 +15219,8 @@ class Stencil extends s$b {
                 // B to A
                 const bDir = getMappingInfo(this.doc, iedPairs[1], iedPairs[0]);
                 this.iedMappingStencilData.push(...bDir);
-                aDir.forEach((val) => {
-                    if (!this.uniqueIeds.includes(val.to))
-                        this.uniqueIeds.push(val.to);
-                    if (!this.uniqueIeds.includes(val.to))
-                        this.uniqueIeds.push(val.from);
-                });
-                bDir.forEach((val) => {
-                    if (!this.uniqueIeds.includes(val.to))
-                        this.uniqueIeds.push(val.to);
-                    if (!this.uniqueIeds.includes(val.to))
-                        this.uniqueIeds.push(val.from);
-                });
             });
+            this.templateCreationStage = 1;
         }}"
           form="selection"
           >Add IEDs</md-text-button
@@ -15071,17 +15228,23 @@ class Stencil extends s$b {
       </div></md-dialog
     >`;
     }
+    renderView() {
+        return this.renderOutputJSON();
+    }
     render() {
         return x$1 `<mwc-tab-bar
         @MDCTabBar:activated=${({ detail: { index } }) => {
             this.tabIndex = index;
         }}
       >
-        <mwc-tab label="Use" icon="stadia_controller" default></mwc-tab>
+        <mwc-tab label="Use" icon="play_circle" default></mwc-tab>
         <mwc-tab label="Create" icon="construction"></mwc-tab>
+        <mwc-tab label="View" icon="frame_source"></mwc-tab>
       </mwc-tab-bar>
       <section>
-        ${this.tabIndex === 0 ? this.renderUse() : this.renderCreate()}
+        ${this.tabIndex === 0 ? this.renderUse() : T$1}
+        ${this.tabIndex === 1 ? this.renderCreate() : T$1}
+        ${this.tabIndex === 2 ? this.renderView() : T$1}
       </section>
       ${this.renderTemplateIedsSelector()} ${this.renderFunctionIedSelector()}`;
     }
@@ -15164,6 +15327,7 @@ Stencil.styles = i$a `
 
     .iedfunction {
       width: 300px;
+      min-width: 250px;
     }
 
     #appMaker {
@@ -15210,6 +15374,69 @@ Stencil.styles = i$a `
       max-height: 100%;
       background-color: var(--mdc-theme-surface, #fafafa);
       padding: 12px;
+    }
+
+    table {
+      position: relative;
+      border-collapse: collapse;
+      border: 2px solid rgb(140 140 140);
+      color: var(--mdc-theme-on-surface);
+      font-family: 'Roboto', sans-serif;
+      font-weight: normal;
+      padding: 12px;
+      /* font-size: 0.8rem; */
+      letter-spacing: 1px;
+    }
+
+    caption {
+      caption-side: bottom;
+      padding: 10px;
+      font-weight: bold;
+    }
+
+    thead,
+    tfoot {
+      background-color: var(--mdc-theme-surface, #fafafa);
+    }
+
+    th.stay[scope='col'] {
+      position: sticky;
+      top: 60px;
+      background-color: var(--mdc-theme-surface, #fafafa);
+      padding: 5px 10px;
+    }
+
+    th,
+    td {
+      border: 1px solid rgb(160 160 160);
+      padding: 3px 3px 5px 5px;
+    }
+
+    td:last-of-type {
+      text-align: center;
+    }
+
+    .mapcell {
+      text-align: center;
+    }
+
+    .cbname {
+      text-align: left;
+      font-weight: 300;
+      padding-left: 20px;
+      padding-right: 20px;
+      position: sticky;
+      left: 0px;
+    }
+
+    .iedname {
+      text-align: left;
+      padding-left: 5px;
+      padding-right: 5px;
+    }
+
+    tbody > tr:nth-of-type(even) {
+      background-color: rgb(237 238 242);
     }
   `;
 __decorate([
@@ -15258,6 +15485,12 @@ __decorate([
     n$f()
 ], Stencil.prototype, "showDeprecated", void 0);
 __decorate([
+    n$f()
+], Stencil.prototype, "templateCreationStage", void 0);
+__decorate([
+    n$f()
+], Stencil.prototype, "createCBsToRemove", void 0);
+__decorate([
     e$c('mwc-tab-bar')
 ], Stencil.prototype, "tabBarUI", void 0);
 __decorate([
@@ -15275,6 +15508,9 @@ __decorate([
 __decorate([
     e$c('#appver')
 ], Stencil.prototype, "appVer", void 0);
+__decorate([
+    e$c('#appverdesc')
+], Stencil.prototype, "appVerDesc", void 0);
 __decorate([
     e$c('#appdeprecated')
 ], Stencil.prototype, "appDeprecated", void 0);
