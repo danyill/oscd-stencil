@@ -14478,7 +14478,7 @@ function getIedDescription(ied) {
     return { firstLine, secondLine };
 }
 
-const defaultStencil = await fetch(new URL(new URL('assets/default_stencil-38e514c8.json', import.meta.url).href, import.meta.url)).then(res => res.json());
+const defaultStencil = await fetch(new URL(new URL('assets/default_stencil-369a9a4d.json', import.meta.url).href, import.meta.url)).then(res => res.json());
 function newIedIdentity(iedName, id) {
     return `${iedName}${id}`;
 }
@@ -14933,17 +14933,16 @@ class Stencil extends s$b {
     `;
     }
     renderCbSelectionTable() {
-        const processedIeds = new Map();
-        this.iedMappingStencilData.forEach(cb => {
-            const existingCbs = processedIeds.get(cb.from);
-            if (existingCbs && !existingCbs.includes(cb.id)) {
-                existingCbs.push(cb.id);
-                processedIeds.set(cb.from, existingCbs);
-            }
-            else {
-                processedIeds.set(cb.from, [cb.id]);
-            }
-        });
+        // const iedFromWithCBs = new Map<string, string[]>();
+        // this.iedMappingStencilData.forEach(cb => {
+        //   const existingCbs = iedFromWithCBs.get(cb.from);
+        //   if (existingCbs && !existingCbs.includes(cb.id)) {
+        //     existingCbs.push(cb.id);
+        //     iedFromWithCBs.set(cb.from, existingCbs);
+        //   } else {
+        //     iedFromWithCBs.set(cb.from, [cb.id]);
+        //   }
+        // });
         const toIedNames = this.iedMappingStencilData
             .map(cb => cb.to)
             .filter((item, i, ar) => ar.indexOf(item) === i)
@@ -14952,9 +14951,17 @@ class Stencil extends s$b {
             .map(cb => cb.from)
             .filter((item, i, ar) => ar.indexOf(item) === i)
             .sort();
+        const iedFromWithCBs = new Map();
+        rowIedNames.forEach(ied => {
+            iedFromWithCBs.set(ied, [
+                ...new Set(this.iedMappingStencilData
+                    .filter(cb => cb.from === ied)
+                    .map(cb => cb.id))
+            ]);
+        });
         const rowInfo = rowIedNames.flatMap(iedName => ({
-            ied: iedName,
-            cbs: processedIeds.get(iedName)
+            fromIed: iedName,
+            cbs: iedFromWithCBs.get(iedName)
         }));
         return x$1 `<h1>Select Template Control Blocks</h1>
       <div class="group">
@@ -14969,31 +14976,45 @@ class Stencil extends s$b {
             </tr>
             <tr>
               <th scope="col">From</th>
-              ${toIedNames.map(iedName => x$1 ` <th class="stay" scope="col">${iedName}</th> `)}
+              ${toIedNames.map(iedName => x$1 `<th class="stay" scope="col">${iedName}</th> `)}
             </tr>
           </thead>
           <tbody>
             ${rowInfo.map(row => x$1 `<tr>
-                    <th scope="row" class="iedname">${row.ied}</th>
-                    <th scope="row" colspan="${toIedNames.length}"></th>
+                    <th scope="row" class="iedname iednamebg">
+                      ${row.fromIed}
+                    </th>
+                    <th
+                      scope="row"
+                      class="iednamebg"
+                      colspan="${toIedNames.length}"
+                    ></th>
                   </tr>
                   ${row.cbs.map(cbName => x$1 `<tr>
                         <th
                           scope="row"
                           class="cbname"
-                          data-fromIed="${row.ied}"
-                          data-fromCb="${cbName.substring(2)}"
+                          data-fromIed="${row.fromIed}"
+                          data-fromCb="${cbName}"
                         >
-                          ${cbName}
+                          ${cbName.substring(2)}
                         </th>
                         ${toIedNames.map(toIed => {
-            const mapped = this.iedMappingStencilData.find(cb => cb.id === cbName &&
-                cb.from === row.ied &&
+            const mappedCb = this.iedMappingStencilData.find(cb => cb.id === cbName &&
+                cb.from === row.fromIed &&
                 cb.to === toIed);
-            return x$1 `<td class="${mapped ? 'mapcell' : ''}">
-                            ${mapped && this.templateCreationStage < 2
+            return x$1 `<td
+                            class="${mappedCb
+                ? 'mapcell'
+                : ''} ${row.fromIed === toIed ? 'diagonal' : ''}"
+                          >
+                            ${mappedCb && this.templateCreationStage < 2
                 ? x$1 `<md-checkbox
-                                  data-fromIed="${row.ied}"
+                                  class="cb ${mappedCb &&
+                    mappedCb.type === 'SampledValueControl'
+                    ? 'sv'
+                    : ''}"
+                                  data-fromIed="${row.fromIed}"
                                   data-fromCb="${cbName}"
                                   data-toIed="${toIed}"
                                   touch-target="wrapper"
@@ -15001,30 +15022,49 @@ class Stencil extends s$b {
                                   @change=${(event) => {
                     // eslint-disable-next-line prefer-destructuring
                     const target = event.target;
-                    const { fromcb, fromied, toied } = target.dataset;
-                    const cbObject = {
-                        id: fromcb,
-                        from: fromied,
-                        to: toied
-                    };
+                    // const { fromcb, fromied, toied } =
+                    //   target.dataset!;
+                    // const cbObject: ControlBlockTableMapping = {
+                    //   id: fromcb!,
+                    //   from: fromied!,
+                    //   to: toied!
+                    // };
                     if (
                     // we use true to remove because the UI
                     // update has not yet happened
                     target.checked === true) {
                         this.createCBsToRemove =
-                            this.createCBsToRemove.filter(cb => cb.id === cbObject.id &&
-                                cb.from === cbObject.from &&
-                                cb.to === cbObject.to);
+                            this.createCBsToRemove.filter(cb => cb.id === cbName &&
+                                cb.from === row.fromIed &&
+                                cb.to === toIed
+                            // cb.id === cbObject.id &&
+                            // cb.from === cbObject.from &&
+                            // cb.to === cbObject.to
+                            );
                     }
                     else if (target.checked === false) {
-                        this.createCBsToRemove.push(cbObject);
+                        this.createCBsToRemove.push({
+                            id: cbName,
+                            from: row.fromIed,
+                            to: toIed
+                        });
                     }
-                    console.log(this.createCBsToRemove);
+                    // console.log(this.createCBsToRemove);
                 }}
                                 ></md-checkbox>`
                 : T$1}
-                            ${mapped && this.templateCreationStage >= 2
-                ? x$1 `✅︎`
+                            ${mappedCb &&
+                !this.createCBsToRemove.find(cb => cb.id === cbName &&
+                    cb.from === row.fromIed &&
+                    cb.to === toIed) &&
+                this.templateCreationStage >= 2
+                ? x$1 `<md-icon
+                                  class="cb ${mappedCb &&
+                    mappedCb.type === 'SampledValueControl'
+                    ? 'sv'
+                    : ''}"
+                                  >check</md-icon
+                                >`
                 : T$1}
                           </td>`;
         })}
@@ -15412,6 +15452,10 @@ Stencil.styles = i$a `
       padding: 3px 3px 5px 5px;
     }
 
+    .diagonal {
+      background-color: #b3e7ff;
+    }
+
     td:last-of-type {
       text-align: center;
     }
@@ -15429,15 +15473,39 @@ Stencil.styles = i$a `
       left: 0px;
     }
 
+    .iednamebg {
+      background-color: rgb(210 210 210);
+    }
+
     .iedname {
       text-align: left;
       padding-left: 5px;
       padding-right: 5px;
     }
 
-    tbody > tr:nth-of-type(even) {
-      background-color: rgb(237 238 242);
+    md-checkbox.cb {
+      margin: 5px;
     }
+
+    md-checkbox.cb {
+      --md-checkbox-selected-container-color: lightseagreen;
+    }
+
+    md-checkbox.cb.sv {
+      --md-checkbox-selected-container-color: darkred;
+    }
+
+    .cb.sv {
+      color: darkred;
+    }
+
+    .cb {
+      color: lightseagreen;
+    }
+
+    /* tbody > tr:nth-of-type(even) {
+      background-color: rgb(237 238 242);
+    } */
   `;
 __decorate([
     n$f({ attribute: false })
