@@ -15,6 +15,8 @@ export type ControlBlockInfo = {
   name: string;
   from: string;
   to: string;
+  baseFrom?: string;
+  baseTo?: string;
   type: string;
   mappings: Mapping[];
   supervision: string;
