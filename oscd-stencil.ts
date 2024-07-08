@@ -373,9 +373,6 @@ export default class Stencil extends LitElement {
         ]
       };
     }
-
-    const outputText = JSON.stringify(this.stencilData, null, 2);
-    this.outputStencilUI.value = outputText;
   }
 
   saveStencilAsFile(): void {
@@ -384,9 +381,11 @@ export default class Stencil extends LitElement {
     });
 
     const a = document.createElement('a');
-    a.download = `${this.stencilData.name.replace(' ', '_')}_${
-      this.stencilVersion.value
-    }.json`;
+    a.download = `${(this.stencilData.name === null ||
+    this.stencilData.name === ''
+      ? 'Unknown Stencil'
+      : this.stencilData.name
+    ).replace(' ', '_')}_${this.stencilData.version ?? 'Unknown Version'}.json`;
 
     a.href = URL.createObjectURL(blob);
     a.dataset.downloadurl = ['application/json', a.download, a.href].join(':');
@@ -1207,7 +1206,6 @@ export default class Stencil extends LitElement {
       ${this.templateCreationStage >= 2
         ? this.renderIedsToFunctionNaming()
         : nothing}
-      ${this.templateCreationStage >= 3 ? this.renderOutputJSON() : nothing}
     `;
   }
 
@@ -1413,7 +1411,7 @@ export default class Stencil extends LitElement {
     }
 
     md-list-item.selected {
-      background-color: var(--thumbBG);
+      background-color: color-mix(in srgb, var(--thumbBG) 20%, transparent);
     }
 
     .menu-item {
