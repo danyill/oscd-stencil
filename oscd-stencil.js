@@ -13264,6 +13264,39 @@ function subscribe(connectionOrConnections, options = {
     return [...extRefEdits, ...insertSubscriptionSupervisions(extRefEdits)];
 }
 
+/**
+ * Instantiate supervision logical node (LGOS/LSVS) for [[`sourceControlBlock`]]
+ * within a [[`subscriberIedOrLn`]].
+ * @param supervision
+ * @param options
+ * @return Insert edit or null, if supervision is not possible
+ */
+function instantiateSubscriptionSupervision(supervision, options = {
+    newSupervisionLn: false,
+    fixedLnInst: -1,
+    checkEditableSrcRef: true,
+    checkDuplicateSupervisions: true,
+    checkMaxSupervisionLimits: true,
+}) {
+    if (!canInstantiateSubscriptionSupervision(supervision, options))
+        return null;
+    if (options.fixedLnInst >= 0)
+        return createSupervisionEdit(supervision, {
+            newSupervisionLn: options.newSupervisionLn,
+            fixedInst: `${options.fixedLnInst}`,
+        });
+    if (supervision.subscriberIedOrLn.tagName === "LN")
+        return createSupervisionEdit(supervision, { fixedInst: "-1" });
+    /** Global as multiple subscription could be defined for different subscriber IEDs */
+    const instGenerator = globalLnInstGenerator();
+    if (options.newSupervisionLn && options.fixedLnInst === -1)
+        return createSupervisionEdit(supervision, {
+            newSupervisionLn: true,
+            instGenerator,
+        });
+    return createSupervisionEdit(supervision, { instGenerator });
+}
+
 /** @returns parent `tagName` s for SCL (2007B4) element tag  */
 function parentTags(tagName) {
     if (!isSCLTag(tagName))
@@ -14478,7 +14511,7 @@ function getIedDescription(ied) {
     return { firstLine, secondLine };
 }
 
-const defaultStencil = await fetch(new URL(new URL('assets/default_stencil-369a9a4d.json', import.meta.url).href, import.meta.url)).then(res => res.json());
+const defaultStencil = await fetch(new URL(new URL('assets/default_stencil-bced1319.json', import.meta.url).href, import.meta.url)).then(res => res.json());
 function newIedIdentity(iedName, id) {
     return `${iedName}${id}`;
 }
@@ -14492,6 +14525,11 @@ class Stencil extends s$b {
         this.tabIndex = 0;
         this.iedMappingStencilData = [];
         this.uniqueIeds = [];
+        this.stencilData = {
+            name: 'Noname',
+            version: '0.0.1',
+            applications: []
+        };
         this.selectedApplication = null;
         this.selectedAppVersion = undefined;
         this.applicationSelectedIed = null;
@@ -14505,11 +14543,11 @@ class Stencil extends s$b {
         this.stencilData = defaultStencil;
     }
     addApplication() {
-        var _a, _b;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
         // need to do some validation
         this.templateCreationStage = 3;
         const iedNameMapping = new Map();
-        this.functionIedNamesUI.forEach(textField => iedNameMapping.set(textField.dataset.ied, textField.value));
+        this.functionIedNamesUI.forEach(textField => iedNameMapping.set(textField.dataset.ied, textField.value.trim()));
         const ieds = new Map();
         this.uniqueIeds.forEach(iedName => {
             var _a, _b, _c, _d, _e;
@@ -14526,37 +14564,166 @@ class Stencil extends s$b {
                 ]
             });
         });
-        this.stencilData = {
-            description: this.stencilDesc.value,
-            version: this.stencilVersion.value,
-            applications: [
+        // no existing application
+        const noExistingApplications = this.stencilData.applications.length === 0;
+        if (noExistingApplications) {
+            this.stencilData = {
+                name: this.stencilName.value.trim(),
+                version: this.stencilVersion.value.trim(),
+                applications: [
+                    {
+                        category: (_a = this.appCategory.value.trim()) !== null && _a !== void 0 ? _a : 'UnknownCategory',
+                        name: (_b = this.appName.value.trim()) !== null && _b !== void 0 ? _b : 'UnknownName',
+                        description: this.appDesc.value.trim(),
+                        versions: [
+                            {
+                                version: this.appVer.value.trim(),
+                                description: this.appVerDesc.value.trim(),
+                                deprecated: this.appDeprecated.checked,
+                                IEDS: Object.fromEntries(ieds),
+                                ControlBlocks: this.iedMappingStencilData.map(cb => ({
+                                    ...cb,
+                                    from: iedNameMapping.get(cb.from),
+                                    to: iedNameMapping.get(cb.to)
+                                }))
+                            }
+                        ]
+                    }
+                ]
+            };
+        }
+        // application that already matches parameters
+        const enteringExistingApplication = this.stencilData.applications.find(app => app.category === this.appCategory.value.trim() &&
+            app.name === this.appName.value.trim());
+        // application version that already matches parameters
+        const existingApplicationVersion = enteringExistingApplication &&
+            enteringExistingApplication.versions.find(app => app.version === this.appVer.value.trim());
+        // new application without an existing version, add to existing application list
+        if (enteringExistingApplication && !existingApplicationVersion) {
+            this.stencilData = {
+                name: this.stencilName.value.trim(),
+                version: this.stencilVersion.value.trim(),
+                applications: [
+                    ...this.stencilData.applications,
+                    {
+                        category: (_c = this.appCategory.value.trim()) !== null && _c !== void 0 ? _c : 'UnknownCategory',
+                        name: (_d = this.appName.value.trim()) !== null && _d !== void 0 ? _d : 'UnknownName',
+                        description: this.appDesc.value.trim(),
+                        versions: [
+                            {
+                                version: this.appVer.value.trim(),
+                                description: this.appVerDesc.value.trim(),
+                                deprecated: this.appDeprecated.checked,
+                                IEDS: Object.fromEntries(ieds),
+                                ControlBlocks: this.iedMappingStencilData.map(cb => ({
+                                    ...cb,
+                                    from: iedNameMapping.get(cb.from),
+                                    to: iedNameMapping.get(cb.to)
+                                }))
+                            }
+                        ]
+                    }
+                ]
+            };
+        }
+        // existing application and existing version --- overwrite
+        if (enteringExistingApplication && existingApplicationVersion) {
+            const newAppVersions = [
+                ...enteringExistingApplication.versions.filter(appVer => appVer.version !== this.appVer.value.trim()),
                 {
-                    category: (_a = this.appCategory.value) !== null && _a !== void 0 ? _a : 'UnknownCategory',
-                    name: (_b = this.appName.value) !== null && _b !== void 0 ? _b : 'UnknownName',
-                    description: this.appDesc.value,
-                    versions: [
-                        {
-                            version: this.appVer.value,
-                            description: this.appVerDesc.value,
-                            deprecated: this.appDeprecated.checked,
-                            IEDS: Object.fromEntries(ieds),
-                            ControlBlocks: this.iedMappingStencilData
-                        }
-                    ]
+                    version: this.appVer.value.trim(),
+                    description: this.appVerDesc.value.trim(),
+                    deprecated: this.appDeprecated.checked,
+                    IEDS: Object.fromEntries(ieds),
+                    ControlBlocks: this.iedMappingStencilData.map(cb => ({
+                        ...cb,
+                        from: iedNameMapping.get(cb.from),
+                        to: iedNameMapping.get(cb.to)
+                    }))
                 }
-            ]
-        };
-    }
-    downloadStencil() {
+            ];
+            this.stencilData = {
+                name: this.stencilName.value.trim(),
+                version: this.stencilVersion.value.trim(),
+                applications: [
+                    ...this.stencilData.applications,
+                    {
+                        category: (_e = this.appCategory.value.trim()) !== null && _e !== void 0 ? _e : 'UnknownCategory',
+                        name: (_f = this.appName.value.trim()) !== null && _f !== void 0 ? _f : 'UnknownName',
+                        // could also update the description this way!
+                        description: this.appDesc.value.trim(),
+                        versions: newAppVersions
+                    }
+                ]
+            };
+        }
+        // existing application and new version
+        if (enteringExistingApplication && !existingApplicationVersion) {
+            const existingandNewAppVersions = [
+                ...enteringExistingApplication.versions,
+                {
+                    version: this.appVer.value.trim(),
+                    description: this.appVerDesc.value.trim(),
+                    deprecated: this.appDeprecated.checked,
+                    IEDS: Object.fromEntries(ieds),
+                    ControlBlocks: this.iedMappingStencilData.map(cb => ({
+                        ...cb,
+                        from: iedNameMapping.get(cb.from),
+                        to: iedNameMapping.get(cb.to)
+                    }))
+                }
+            ];
+            this.stencilData = {
+                name: this.stencilName.value.trim(),
+                version: this.stencilVersion.value.trim(),
+                applications: [
+                    ...this.stencilData.applications,
+                    {
+                        category: (_g = this.appCategory.value.trim()) !== null && _g !== void 0 ? _g : 'UnknownCategory',
+                        name: (_h = this.appName.value.trim()) !== null && _h !== void 0 ? _h : 'UnknownName',
+                        // could also update the description this way!
+                        description: this.appDesc.value.trim(),
+                        versions: existingandNewAppVersions
+                    }
+                ]
+            };
+        }
+        if (!enteringExistingApplication && !existingApplicationVersion) {
+            this.stencilData = {
+                name: this.stencilName.value.trim(),
+                version: this.stencilVersion.value.trim(),
+                applications: [
+                    ...this.stencilData.applications,
+                    {
+                        category: (_j = this.appCategory.value.trim()) !== null && _j !== void 0 ? _j : 'UnknownCategory',
+                        name: (_k = this.appName.value.trim()) !== null && _k !== void 0 ? _k : 'UnknownName',
+                        description: this.appDesc.value.trim(),
+                        versions: [
+                            {
+                                version: this.appVer.value.trim(),
+                                description: this.appVerDesc.value.trim(),
+                                deprecated: this.appDeprecated.checked,
+                                IEDS: Object.fromEntries(ieds),
+                                ControlBlocks: this.iedMappingStencilData.map(cb => ({
+                                    ...cb,
+                                    from: iedNameMapping.get(cb.from),
+                                    to: iedNameMapping.get(cb.to)
+                                }))
+                            }
+                        ]
+                    }
+                ]
+            };
+        }
         const outputText = JSON.stringify(this.stencilData, null, 2);
         this.outputStencilUI.value = outputText;
     }
     saveStencilAsFile() {
-        const blob = new Blob([this.outputStencilUI.value], {
+        const blob = new Blob([JSON.stringify(this.stencilData, null, 2)], {
             type: 'application/xml'
         });
         const a = document.createElement('a');
-        a.download = `${this.stencilDesc.value.replace(' ', '_')}_${this.stencilVersion.value}.json`;
+        a.download = `${this.stencilData.name.replace(' ', '_')}_${this.stencilVersion.value}.json`;
         a.href = URL.createObjectURL(blob);
         a.dataset.downloadurl = ['application/json', a.download, a.href].join(':');
         a.style.display = 'none';
@@ -14600,6 +14767,7 @@ class Stencil extends s$b {
     applyStencil() {
         const errorText = [];
         let subscriptionsCount = 0;
+        let supervisionsCount = 0;
         const usedFunctionCombinations = [
             ...combinations([...this.functionToIed.keys()], 2)
         ];
@@ -14607,15 +14775,12 @@ class Stencil extends s$b {
             var _a;
             const fn1 = combo[0];
             const fn2 = combo[1];
-            const fn1Info = this.selectedAppVersion.IEDS[fn1];
-            const fn2Info = this.selectedAppVersion.IEDS[fn2];
             const newIed1Name = this.functionToIed.get(fn1);
             const newIed2Name = this.functionToIed.get(fn2);
-            (_a = this.selectedAppVersion) === null || _a === void 0 ? void 0 : _a.ControlBlocks.filter(cb => (cb.from === fn1Info.originalName &&
-                cb.to === fn2Info.originalName) ||
-                (cb.to === fn1Info.originalName && cb.from === fn2Info.originalName)).forEach(cb => {
-                const newFromIed = cb.from === fn1Info.originalName ? newIed1Name : newIed2Name;
-                const newToIed = cb.to === fn1Info.originalName ? newIed1Name : newIed2Name;
+            (_a = this.selectedAppVersion) === null || _a === void 0 ? void 0 : _a.ControlBlocks.filter(cb => (cb.from === fn1 && cb.to === fn2) ||
+                (cb.to === fn1 && cb.from === fn2)).forEach(cb => {
+                const newFromIed = cb.from === fn1 ? newIed1Name : newIed2Name;
+                const newToIed = cb.to === fn1 ? newIed1Name : newIed2Name;
                 const newCbId = newIedIdentity(newFromIed, cb.id);
                 const newCb = find(this.doc, cb.type, newCbId);
                 if (!newCb) {
@@ -14651,12 +14816,42 @@ class Stencil extends s$b {
                     ignoreSupervision: true,
                     checkOnlyBType: true
                 })));
+                const newSupervisionId = newIedIdentity(newToIed, cb.supervision);
+                const newSupervision = find(this.doc, 'LN', newSupervisionId);
+                if (!newSupervision) {
+                    errorText.push(`Could not find Supervision: ${newSupervisionId}`);
+                }
+                else {
+                    const supervision = instantiateSubscriptionSupervision({
+                        subscriberIedOrLn: newSupervision,
+                        /** The control block to be supervised */
+                        sourceControlBlock: newCb
+                    }, {
+                        newSupervisionLn: false,
+                        fixedLnInst: -1,
+                        checkEditableSrcRef: false,
+                        checkDuplicateSupervisions: false,
+                        checkMaxSupervisionLimits: false
+                    });
+                    if (supervision) {
+                        supervisionsCount += 1;
+                        this.dispatchEvent(newEditEvent(supervision));
+                    }
+                    else {
+                        errorText.push(`Could not find instantiate supervision: ${newSupervisionId}`);
+                    }
+                }
             });
         });
-        if (errorText)
+        if (errorText.length > 0)
             console.warn(errorText);
-        if (errorText)
-            console.info(`Hurrah, we have done in one click ${subscriptionsCount}`);
+        console.info(`Hurrah, we have done in one click ${subscriptionsCount} subscriptions and ${supervisionsCount} supervisions`);
+    }
+    resetApplication() {
+        this.templateCreationStage = 0;
+        this.iedMappingStencilData = [];
+        this.uniqueIeds = [];
+        this.createCBsToRemove = [];
     }
     updated() {
         if (this.menuAppButtonUI && !this.createEventListeners) {
@@ -14821,69 +15016,33 @@ class Stencil extends s$b {
     renderUse() {
         if (!this.doc)
             return x$1 `<h1>Please open a file to use this functionality</h1>`;
-        const appCategories = this.stencilData.applications
-            .filter(app => app.versions.some(version => version.deprecated && this.showDeprecated) || !this.showDeprecated)
-            .map(app => app.category)
-            .filter((item, i, ar) => ar.indexOf(item) === i)
-            .map(appCategory => x$1 ` <md-list-item data-cat="${appCategory}">
-              <div slot="headline">${appCategory}</div>
-              <md-icon slot="start">ad_group</md-icon>
-            </md-list-item>
-            ${this.stencilData.applications
-            .filter(app => app.category === appCategory)
-            .flatMap(app => {
-            var _a, _b;
-            if (this.showDeprecated === false)
-                this.selectedAppVersion = app.versions.find(appVer => appVer.deprecated === false);
-            return x$1 `<md-list-item
-                  @click=${(event) => {
-                var _a;
-                this.selectedApplication = app;
-                event.target
-                    .closest('md-list')
-                    .querySelectorAll('md-list-item')
-                    .forEach(listItem => {
-                    listItem.classList.remove('selected');
-                });
-                (_a = event.target
-                    .closest('md-list-item')) === null || _a === void 0 ? void 0 : _a.classList.add('selected');
-            }}
-                  type="button"
-                  data-cat="${appCategory}"
-                  data-name="${app.name}"
-                >
-                  <div slot="headline">${app.name}</div>
-                  <div slot="supporting-text">
-                    ${app.description}${((_a = this.selectedAppVersion) === null || _a === void 0 ? void 0 : _a.description) ===
-                undefined
-                ? ''
-                : ` - ${(_b = this.selectedAppVersion) === null || _b === void 0 ? void 0 : _b.description}`}
-                  </div>
-                  <div slot="trailing-supporting-text">
-                    ${this.selectedAppVersion
-                ? this.selectedAppVersion.version
-                : 'No available version'}
-                  </div>
-                  <md-icon slot="start">draw_collage</md-icon>
-                </md-list-item>`;
-        })}`);
         return x$1 `
       <div id="headline">
         <h1 id="stencilName">
-          ${this.stencilData.description}<code id="stencilVersion"
+          ${this.stencilData.name}<code id="stencilVersion"
             >${defaultStencil.version}</code
           >
         </h1>
-        <span style="position: relative">
+        <div id="menuUse">
           <md-outlined-button
-            id="more"
+            id="changeStencilBtn"
+            class="button"
             @click=${() => {
             this.changeStenciLUI.click();
         }}
-            >Change Stencil
+            >Open
             <md-icon slot="icon">file_open</md-icon>
           </md-outlined-button>
-        </span>
+          <md-outlined-button
+            id="saveStencilBtn"
+            class="button"
+            @click=${() => {
+            this.saveStencilAsFile();
+        }}
+            >Save
+            <md-icon slot="icon">file_open</md-icon>
+          </md-outlined-button>
+        </div>
       </div>
       <section>
         <div id="appMaker">
@@ -14915,8 +15074,57 @@ class Stencil extends s$b {
                 </md-menu-item>
               </md-menu>
             </h2>
-
-            <md-list id="applications">${appCategories}</md-list>
+            <md-list id="applications"
+              >${this.stencilData.applications
+            .filter(app => app.versions.some(version => version.deprecated && this.showDeprecated) || !this.showDeprecated)
+            .map(app => app.category)
+            .filter((item, i, ar) => ar.indexOf(item) === i)
+            .map(appCategory => x$1 ` <md-list-item data-cat="${appCategory}">
+                        <div slot="headline">${appCategory}</div>
+                        <md-icon slot="start">ad_group</md-icon>
+                      </md-list-item>
+                      ${this.stencilData.applications
+            .filter(app => app.category === appCategory)
+            .flatMap(app => {
+            let availableVersion = null;
+            if (this.showDeprecated === false)
+                availableVersion = app.versions.find(appVer => appVer.deprecated === false);
+            return x$1 `<md-list-item
+                            @click=${(event) => {
+                var _a;
+                this.selectedApplication = app;
+                if (this.showDeprecated === false)
+                    this.selectedAppVersion = app.versions.find(appVer => appVer.deprecated === false);
+                // TODO: Handle deprecated versions
+                event.target
+                    .closest('md-list')
+                    .querySelectorAll('md-list-item')
+                    .forEach(listItem => {
+                    listItem.classList.remove('selected');
+                });
+                (_a = event.target
+                    .closest('md-list-item')) === null || _a === void 0 ? void 0 : _a.classList.add('selected');
+            }}
+                            type="button"
+                            data-cat="${appCategory}"
+                            data-name="${app.name}"
+                          >
+                            <div slot="headline">${app.name}</div>
+                            <div slot="supporting-text">
+                              ${app.description}${(availableVersion === null || availableVersion === void 0 ? void 0 : availableVersion.description) ===
+                undefined
+                ? ''
+                : ` - ${availableVersion === null || availableVersion === void 0 ? void 0 : availableVersion.description}`}
+                            </div>
+                            <div slot="trailing-supporting-text">
+                              ${availableVersion
+                ? availableVersion.version
+                : 'No available version'}
+                            </div>
+                            <md-icon slot="start">draw_collage</md-icon>
+                          </md-list-item>`;
+        })}`)}</md-list
+            >
           </div>
           ${this.renderIedsForUse()}
         </div>
@@ -14929,6 +15137,7 @@ class Stencil extends s$b {
         }}
         @change=${this.loadStencil}
         type="file"
+        accept=".json"
       />
     `;
     }
@@ -15115,7 +15324,7 @@ class Stencil extends s$b {
     renderOutputJSON() {
         return x$1 `<div class="output">
       <md-outlined-text-field
-        id="output"
+        class="outputView"
         type="textarea"
         label="Stencil Output File"
         value="${JSON.stringify(this.stencilData, null, 2)}"
@@ -15131,12 +15340,38 @@ class Stencil extends s$b {
     </div>`;
     }
     renderCreate() {
+        var _a, _b;
         this.createEventListeners = false;
         if (!this.doc)
             return x$1 `<h1>Please open a file to use this functionality</h1>`;
         return x$1 `
+      <h1>Enter Stencil Data</h1>
+      <div class="group appinf">
+        <md-outlined-text-field
+          id="stenname"
+          label="Name"
+          value="${(_a = this.stencilData.name) !== null && _a !== void 0 ? _a : ''}"
+        >
+        </md-outlined-text-field>
+        <md-outlined-text-field
+          id="stenver"
+          label="Version"
+          value="${(_b = this.stencilData.version) !== null && _b !== void 0 ? _b : ''}"
+        >
+        </md-outlined-text-field>
+      </div>
+      <md-outlined-button
+        class="button"
+        @click=${() => {
+            this.stencilData.name = this.stencilName.value.trim();
+            this.stencilData.version = this.stencilName.value.trim();
+            this.resetApplication();
+        }}
+        >Update Stencil Metadata
+        <md-icon slot="icon">sync_alt</md-icon>
+      </md-outlined-button>
       <h1>
-        Enter Stencil Data
+        Enter Application Data
         <md-outlined-button
           class="button"
           @click=${() => {
@@ -15145,39 +15380,16 @@ class Stencil extends s$b {
             this.uniqueIeds = [];
             this.createCBsToRemove = [];
         }}
-          >Reset Template
+          >Reset Application
           <md-icon slot="icon">draw_collage</md-icon>
         </md-outlined-button>
       </h1>
       <div class="group appinf">
-        <md-outlined-text-field
-          id="stendesc"
-          label="Description"
-          value="Transpower Stencil"
-        >
+        <md-outlined-text-field id="appcat" label="Category" value="">
         </md-outlined-text-field>
-        <md-outlined-text-field id="stenver" label="Version" value="1.0.0">
+        <md-outlined-text-field id="appname" label="Name" value="">
         </md-outlined-text-field>
-      </div>
-      <h1>Enter Application Data</h1>
-      <div class="group appinf">
-        <md-outlined-text-field
-          id="appcat"
-          label="Category"
-          value="Bus Protection"
-        >
-        </md-outlined-text-field>
-        <md-outlined-text-field
-          id="appname"
-          label="Name"
-          value="Protection 2 (7SS85) to MUs"
-        >
-        </md-outlined-text-field>
-        <md-outlined-text-field
-          id="appdesc"
-          label="Description"
-          value="Configure MUs and Bus Protection"
-        >
+        <md-outlined-text-field id="appdesc" label="Description" value="">
         </md-outlined-text-field>
         <md-outlined-text-field
           id="appver"
@@ -15187,7 +15399,7 @@ class Stencil extends s$b {
         <md-outlined-text-field
           id="appverdesc"
           label="Version Description"
-          value="Something version specific"
+          value=""
         >
         </md-outlined-text-field>
         <label id="deprecated">
@@ -15331,7 +15543,7 @@ Stencil.styles = i$a `
     }
 
     mwc-tab-bar,
-    #output {
+    .output {
       width: 100%;
       display: block;
       margin-top: 20px;
@@ -15344,7 +15556,7 @@ Stencil.styles = i$a `
 
     #appname,
     #appdesc,
-    #stendesc {
+    #stenname {
       width: 400px;
     }
 
@@ -15503,9 +15715,9 @@ Stencil.styles = i$a `
       color: lightseagreen;
     }
 
-    /* tbody > tr:nth-of-type(even) {
-      background-color: rgb(237 238 242);
-    } */
+    #menuUse {
+      display: inline-flex;
+    }
   `;
 __decorate([
     n$f({ attribute: false })
@@ -15565,6 +15777,9 @@ __decorate([
     e$c('#output')
 ], Stencil.prototype, "outputStencilUI", void 0);
 __decorate([
+    e$c('#outputView')
+], Stencil.prototype, "outputStencilViewUI", void 0);
+__decorate([
     e$c('#appcat')
 ], Stencil.prototype, "appCategory", void 0);
 __decorate([
@@ -15583,8 +15798,8 @@ __decorate([
     e$c('#appdeprecated')
 ], Stencil.prototype, "appDeprecated", void 0);
 __decorate([
-    e$c('#stendesc')
-], Stencil.prototype, "stencilDesc", void 0);
+    e$c('#stenname')
+], Stencil.prototype, "stencilName", void 0);
 __decorate([
     e$c('#stenver')
 ], Stencil.prototype, "stencilVersion", void 0);

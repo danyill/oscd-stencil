@@ -49,7 +49,7 @@ type VersionedApplications = {
     versions: Application[];
 };
 type StencilData = {
-    description: string;
+    name: string;
     version: string;
     applications: VersionedApplications[];
 };
@@ -77,13 +77,14 @@ export default class Stencil extends LitElement {
     createCBsToRemove: ControlBlockTableMapping[];
     tabBarUI: TabBar;
     outputStencilUI: TextField;
+    outputStencilViewUI: TextField;
     appCategory: TextField;
     appName: TextField;
     appDesc: TextField;
     appVer: TextField;
     appVerDesc: TextField;
     appDeprecated: MdCheckbox;
-    stencilDesc: TextField;
+    stencilName: TextField;
     stencilVersion: TextField;
     iedTemplateSelectorUI: MdDialog;
     iedSelectorUI: MdDialog;
@@ -94,12 +95,12 @@ export default class Stencil extends LitElement {
     functionIedNamesUI: TextField[];
     constructor();
     addApplication(): void;
-    downloadStencil(): void;
     saveStencilAsFile(): void;
     clearStencilCreateData(): void;
     clearIedTemplateSelection(): void;
     loadStencil(event: Event): Promise<void>;
     applyStencil(): void;
+    resetApplication(): void;
     updated(): void;
     protected firstUpdated(): void;
     renderFunctionIedSelector(): TemplateResult;
