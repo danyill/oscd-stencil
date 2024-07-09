@@ -516,7 +516,7 @@ export default class Stencil extends LitElement {
             this.dispatchEvent(newEditEvent(supervision));
           } else {
             this.errorMessages.push(
-              `Could not find instantiate supervision: ${newSupervisionId}`
+              `Could not instantiate supervision: ${newSupervisionId}`
             );
           }
         }
@@ -1414,7 +1414,11 @@ export default class Stencil extends LitElement {
       }}
     >
       <div slot="headline">Errors occurred during template processing</div>
-      <p>${this.errorMessages.join('\n')}</p>
+      <div slot="content">
+        <ul>
+          ${this.errorMessages.map(message => html`<li>${message}</li>`)}
+        </ul>
+      </div>
       <div slot="actions">
         <md-text-button
           @click="${() => {
