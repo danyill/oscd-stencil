@@ -15361,7 +15361,7 @@ class Stencil extends s$d {
                         this.dispatchEvent(newEditEvent(supervision));
                     }
                     else {
-                        this.errorMessages.push(`Could not find instantiate supervision: ${newSupervisionId}`);
+                        this.errorMessages.push(`Could not instantiate supervision: ${newSupervisionId}`);
                     }
                 }
             });
@@ -16143,7 +16143,11 @@ class Stencil extends s$d {
         }}
     >
       <div slot="headline">Errors occurred during template processing</div>
-      <p>${this.errorMessages.join('\n')}</p>
+      <div slot="content">
+        <ul>
+          ${this.errorMessages.map(message => x$1 `<li>${message}</li>`)}
+        </ul>
+      </div>
       <div slot="actions">
         <md-text-button
           @click="${() => {
