@@ -3,6 +3,7 @@ import { css, html, LitElement, nothing, TemplateResult } from 'lit';
 import { property, query, queryAll } from 'lit/decorators.js';
 
 import '@material/mwc-tab-bar';
+import '@material/mwc-snackbar/mwc-snackbar.js';
 import '@material/web/button/outlined-button.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/button/text-button.js';
@@ -12,7 +13,6 @@ import '@material/web/list/list.js';
 import '@material/web/list/list-item.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/menu/menu.js';
-
 import '@material/web/icon/icon.js';
 
 import '@openenergytools/filterable-lists/dist/selection-list.js';
@@ -26,6 +26,7 @@ import type { MdOutlinedTextField } from '@material/web/textfield/outlined-text-
 import type { SelectionList } from '@openenergytools/filterable-lists/dist/selection-list.js';
 import type { MdIconButton } from '@material/web/iconbutton/icon-button.js';
 import type { MdMenu } from '@material/web/menu/menu';
+import type { Snackbar } from '@material/mwc-snackbar/mwc-snackbar.js';
 
 import {
   Connection,
@@ -42,6 +43,7 @@ import {
 import { combinations } from './combinations.js';
 import { getIedDescription } from './getIedDescription.js';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const defaultStencil = await fetch(
   new URL('./default_stencil.json', import.meta.url)
 ).then(res => res.json());
@@ -124,13 +126,17 @@ export default class Stencil extends LitElement {
 
   @property() functionToIed: Map<string, string> = new Map();
 
-  @property() createEventListeners: boolean = false;
-
   @property() showDeprecated: boolean = false;
 
   @property() templateCreationStage: number = 0;
 
   @property() createCBsToRemove: ControlBlockTableMapping[] = [];
+
+  @property() snackBarMessage: string = '';
+
+  @property() errorMessages: string[] = [];
+
+  @property() showSupervisions: boolean = true;
 
   // items: SelectItem[] = [];
 
@@ -139,6 +145,10 @@ export default class Stencil extends LitElement {
   @query('#output') outputStencilUI!: TextField;
 
   @query('#outputView') outputStencilViewUI!: TextField;
+
+  @query('#stenname') stencilName!: TextField;
+
+  @query('#stenver') stencilVersion!: TextField;
 
   @query('#appcat') appCategory!: TextField;
 
@@ -152,17 +162,13 @@ export default class Stencil extends LitElement {
 
   @query('#appdeprecated') appDeprecated!: MdCheckbox;
 
-  @query('#stenname') stencilName!: TextField;
-
-  @query('#stenver') stencilVersion!: TextField;
-
   @query('#selection-dialog') iedTemplateSelectorUI!: MdDialog;
 
   @query('#ied-function-selector-dialog') iedSelectorUI!: MdDialog;
 
   @query('#selection-list') selectionListUI!: SelectionList;
 
-  @query('#changeStencil') changeStenciLUI!: HTMLInputElement;
+  @query('#changeStencil') changeStencilUI!: HTMLInputElement;
 
   @query('#menuApplicationsButton') menuAppButtonUI!: MdIconButton;
 
@@ -171,9 +177,15 @@ export default class Stencil extends LitElement {
   @queryAll('#function > md-outlined-text-field')
   functionIedNamesUI!: TextField[];
 
+  @query('#snackBarMessage') snackBarMessageUI!: Snackbar;
+
+  @query('#error-dialog') errorDialogUI!: MdDialog;
+
+  // eslint-disable-next-line no-useless-constructor
   constructor() {
     super();
-    this.stencilData = defaultStencil;
+    // TODO: Decide whether to package stencils at all
+    // this.stencilData = defaultStencil;
   }
 
   addApplication(): void {
@@ -208,6 +220,20 @@ export default class Stencil extends LitElement {
     // no existing application
     const noExistingApplications = this.stencilData.applications.length === 0;
 
+    // application that already matches parameters
+    const enteringExistingApplication = this.stencilData.applications.find(
+      app =>
+        app.category === this.appCategory.value.trim() &&
+        app.name === this.appName.value.trim()
+    );
+
+    // application version that already matches parameters
+    const existingApplicationVersion =
+      enteringExistingApplication &&
+      enteringExistingApplication.versions.find(
+        app => app.version === this.appVer.value.trim()
+      );
+
     if (noExistingApplications) {
       this.stencilData = {
         name: this.stencilName.value.trim(),
@@ -233,24 +259,7 @@ export default class Stencil extends LitElement {
           }
         ]
       };
-    }
-
-    // application that already matches parameters
-    const enteringExistingApplication = this.stencilData.applications.find(
-      app =>
-        app.category === this.appCategory.value.trim() &&
-        app.name === this.appName.value.trim()
-    );
-
-    // application version that already matches parameters
-    const existingApplicationVersion =
-      enteringExistingApplication &&
-      enteringExistingApplication.versions.find(
-        app => app.version === this.appVer.value.trim()
-      );
-
-    // new application without an existing version, add to existing application list
-    if (enteringExistingApplication && !existingApplicationVersion) {
+    } else if (enteringExistingApplication && !existingApplicationVersion) {
       this.stencilData = {
         name: this.stencilName.value.trim(),
         version: this.stencilVersion.value.trim(),
@@ -276,10 +285,7 @@ export default class Stencil extends LitElement {
           }
         ]
       };
-    }
-
-    // existing application and existing version --- overwrite
-    if (enteringExistingApplication && existingApplicationVersion) {
+    } else if (enteringExistingApplication && existingApplicationVersion) {
       const newAppVersions = [
         ...enteringExistingApplication.versions.filter(
           appVer => appVer.version !== this.appVer.value.trim()
@@ -311,42 +317,7 @@ export default class Stencil extends LitElement {
           }
         ]
       };
-    }
-
-    // existing application and new version
-    if (enteringExistingApplication && !existingApplicationVersion) {
-      const existingandNewAppVersions = [
-        ...enteringExistingApplication.versions,
-        {
-          version: this.appVer.value.trim(),
-          description: this.appVerDesc.value.trim(),
-          deprecated: this.appDeprecated.checked,
-          IEDS: Object.fromEntries(ieds),
-          ControlBlocks: this.iedMappingStencilData.map(cb => ({
-            ...cb,
-            from: iedNameMapping.get(cb.from)!,
-            to: iedNameMapping.get(cb.to)!
-          }))
-        }
-      ];
-
-      this.stencilData = {
-        name: this.stencilName.value.trim(),
-        version: this.stencilVersion.value.trim(),
-        applications: [
-          ...this.stencilData.applications,
-          {
-            category: this.appCategory.value.trim() ?? 'UnknownCategory',
-            name: this.appName.value.trim() ?? 'UnknownName',
-            // could also update the description this way!
-            description: this.appDesc.value.trim(),
-            versions: existingandNewAppVersions
-          }
-        ]
-      };
-    }
-
-    if (!enteringExistingApplication && !existingApplicationVersion) {
+    } else if (!enteringExistingApplication && !existingApplicationVersion) {
       this.stencilData = {
         name: this.stencilName.value.trim(),
         version: this.stencilVersion.value.trim(),
@@ -373,6 +344,12 @@ export default class Stencil extends LitElement {
         ]
       };
     }
+
+    this.snackBarMessage = `New application created: ${
+      this.appCategory.value.trim() ?? 'UnknownCategory'
+    } > ${this.appName.value.trim() ?? 'UnknownName'}`;
+    this.snackBarMessageUI.show();
+    this.resetCreateApplication();
   }
 
   saveStencilAsFile(): void {
@@ -438,12 +415,11 @@ export default class Stencil extends LitElement {
     const text = await file.text();
     this.stencilData = JSON.parse(text);
 
-    this.changeStenciLUI.onchange = null;
+    this.changeStencilUI.onchange = null;
   }
 
   // eslint-disable-next-line class-methods-use-this
   applyStencil() {
-    const errorText: string[] = [];
     let subscriptionsCount = 0;
     let supervisionsCount = 0;
 
@@ -470,7 +446,7 @@ export default class Stencil extends LitElement {
         const newCb = find(this.doc, cb.type, newCbId);
 
         if (!newCb) {
-          errorText.push(`Could not find CB: ${newCbId}`);
+          this.errorMessages.push(`Could not find CB: ${newCbId}`);
           return;
         }
 
@@ -480,7 +456,7 @@ export default class Stencil extends LitElement {
             const newSource = find(this.doc, 'FCDA', newSourceId);
 
             if (!newSource) {
-              errorText.push(`Could not find FCDA: ${newSourceId}`);
+              this.errorMessages.push(`Could not find FCDA: ${newSourceId}`);
               return null;
             }
 
@@ -488,7 +464,7 @@ export default class Stencil extends LitElement {
             const newSink = find(this.doc, 'ExtRef', newSinkId);
 
             if (!newSink) {
-              errorText.push(`Could not find ExtRef: ${newSinkId}`);
+              this.errorMessages.push(`Could not find ExtRef: ${newSinkId}`);
               return null;
             }
 
@@ -517,7 +493,9 @@ export default class Stencil extends LitElement {
         const newSupervision = find(this.doc, 'LN', newSupervisionId);
 
         if (!newSupervision) {
-          errorText.push(`Could not find Supervision: ${newSupervisionId}`);
+          this.errorMessages.push(
+            `Could not find Supervision: ${newSupervisionId}`
+          );
         } else {
           const supervision = instantiateSubscriptionSupervision(
             {
@@ -537,7 +515,7 @@ export default class Stencil extends LitElement {
             supervisionsCount += 1;
             this.dispatchEvent(newEditEvent(supervision));
           } else {
-            errorText.push(
+            this.errorMessages.push(
               `Could not find instantiate supervision: ${newSupervisionId}`
             );
           }
@@ -545,45 +523,22 @@ export default class Stencil extends LitElement {
       });
     });
 
-    if (errorText.length > 0) console.warn(errorText);
+    if (this.errorMessages.length > 0) this.errorDialogUI.show();
 
-    console.info(
-      `Hurrah, we have done in one click ${subscriptionsCount} subscriptions and ${supervisionsCount} supervisions`
-    );
+    this.snackBarMessage = `${subscriptionsCount} subscriptions and ${supervisionsCount} supervisions done`;
+    this.snackBarMessageUI.show();
+    this.resetApplyStencil();
   }
 
-  resetApplication(): void {
+  resetCreateApplication(): void {
     this.templateCreationStage = 0;
     this.iedMappingStencilData = [];
     this.uniqueIeds = [];
     this.createCBsToRemove = [];
   }
 
-  updated(): void {
-    if (this.menuAppButtonUI && !this.createEventListeners) {
-      this.createEventListeners = true;
-      this.menuAppButtonUI.addEventListener('click', () => {
-        this.menuAppUI.open = !this.menuAppUI.open;
-      });
-    }
-  }
-
-  protected firstUpdated(): void {
-    this.iedSelectorUI.addEventListener('close', () => {
-      if (this.applicationSelectedFunction && this.applicationSelectedIed) {
-        const iedName = this.applicationSelectedIed.getAttribute('name')!;
-        this.functionToIed.set(this.applicationSelectedFunction, iedName);
-      }
-      if (
-        this.applicationSelectedFunction &&
-        this.iedSelectorUI.returnValue === 'reset'
-      ) {
-        this.functionToIed.delete(this.applicationSelectedFunction);
-      }
-      this.applicationSelectedFunction = null;
-      this.applicationSelectedIed = null;
-      this.applicationSelectedFunctionReqs = null;
-    });
+  resetApplyStencil(): void {
+    this.functionToIed = new Map<string, string>();
   }
 
   renderFunctionIedSelector(): TemplateResult {
@@ -678,13 +633,16 @@ export default class Stencil extends LitElement {
   renderIedsForUse(): TemplateResult {
     return html`${
       this.selectedApplication && this.selectedAppVersion
-        ? html`<div>
+        ? html`<div id="appContainer">
             <h2>${this.selectedApplication.category}</h2>
-            <div style="padding-left:30px;">
+            <div id="appUseInfo">
               <h3>${this.selectedApplication.name}</h3>
               <p>
-                ${this.selectedApplication?.description} -
-                ${this.selectedAppVersion.description}
+                ${this.selectedApplication.description}${this.selectedAppVersion
+                  ?.description === undefined ||
+                this.selectedAppVersion?.description === ''
+                  ? ''
+                  : ` - ${this.selectedAppVersion?.description}`}
               </p>
             </div>
             <h2>Select IEDs for Function</h2>
@@ -725,7 +683,7 @@ export default class Stencil extends LitElement {
               class="button"
               ?disabled=${this.functionToIed.size === 0}
               @click=${() => {
-                this.functionToIed = new Map<string, string>();
+                this.resetApplyStencil();
               }}
               >Clear IEDs
               <md-icon slot="icon">cancel</md-icon>
@@ -743,44 +701,138 @@ export default class Stencil extends LitElement {
   </div>`;
   }
 
-  renderUse(): TemplateResult {
-    if (!this.doc)
-      return html`<h1>Please open a file to use this functionality</h1>`;
+  renderApplicationDetails(): TemplateResult {
+    if (!this.selectedAppVersion) return html``;
 
-    return html`
-      <div id="headline">
-        <h1 id="stencilName">
-          ${this.stencilData.name}<code id="stencilVersion"
-            >${defaultStencil.version}</code
-          >
-        </h1>
-        <div id="menuUse">
-          <md-outlined-button
-            id="changeStencilBtn"
-            class="button"
-            @click=${() => {
-              this.changeStenciLUI.click();
-            }}
-            >Open
-            <md-icon slot="icon">file_open</md-icon>
-          </md-outlined-button>
-          <md-outlined-button
-            id="saveStencilBtn"
-            class="button"
-            @click=${() => {
-              this.saveStencilAsFile();
-            }}
-            >Save
-            <md-icon slot="icon">file_open</md-icon>
-          </md-outlined-button>
-        </div>
-      </div>
-      <section>
+    const toIedNames = this.selectedAppVersion!.ControlBlocks.map(cb => cb.to)
+      .filter((item, i, ar) => ar.indexOf(item) === i)
+      .sort();
+
+    const rowIedNames = this.selectedAppVersion!.ControlBlocks.map(
+      cb => cb.from
+    )
+      .filter((item, i, ar) => ar.indexOf(item) === i)
+      .sort();
+
+    const iedFromWithCBs = new Map<string, string[]>();
+    rowIedNames.forEach(ied => {
+      iedFromWithCBs.set(ied, [
+        ...new Set(
+          this.selectedAppVersion!.ControlBlocks.filter(
+            cb => cb.from === ied
+          ).map(cb => cb.id)
+        )
+      ]);
+    });
+
+    const rowInfo = rowIedNames.flatMap(iedName => ({
+      fromIed: iedName,
+      cbs: iedFromWithCBs.get(iedName)
+    }));
+
+    return html`<div id="controlBlockMappings" class="columngroup">
+      <label
+        ><md-checkbox
+          touch-target="wrapper"
+          ?checked=${true}
+          @change=${() => {
+            this.showSupervisions = !this.showSupervisions;
+          }}
+        ></md-checkbox
+        >Show Supervisions</label
+      >
+      <table>
+        <caption>
+          Control Block Mappings
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col"></th>
+            <th scope="col" colspan="${toIedNames.length}">To</th>
+          </tr>
+          <tr>
+            <th scope="col">From</th>
+            ${toIedNames.map(
+              iedName => html`<th class="stay" scope="col">${iedName}</th> `
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          ${rowInfo.map(
+            row =>
+              html`<tr>
+                  <th scope="row" class="iedname iednamebg">${row.fromIed}</th>
+                  <th
+                    scope="row"
+                    class="iednamebg"
+                    colspan="${toIedNames.length}"
+                  ></th>
+                </tr>
+                ${row.cbs!.map(
+                  cbName =>
+                    html`<tr>
+                      <th
+                        scope="row"
+                        class="cbname"
+                        data-fromIed="${row.fromIed}"
+                        data-fromCb="${cbName}"
+                      >
+                        ${cbName.substring(2)}
+                      </th>
+                      ${toIedNames.map(toIed => {
+                        const mappedCb =
+                          this.selectedAppVersion!.ControlBlocks.find(
+                            cb =>
+                              cb.id === cbName &&
+                              cb.from === row.fromIed &&
+                              cb.to === toIed
+                          );
+                        return html`<td
+                          class="${mappedCb ? 'mapcell' : ''} ${row.fromIed ===
+                          toIed
+                            ? 'diagonal'
+                            : ''}"
+                        >
+                          ${mappedCb
+                            ? html`<md-icon
+                                  class="cb ${mappedCb &&
+                                  mappedCb.type === 'SampledValueControl'
+                                    ? 'sv'
+                                    : ''}"
+                                  >check</md-icon
+                                >
+                                ${this.showSupervisions
+                                  ? html`<p id="supervisionInfo">
+                                      ${mappedCb.supervision === 'None'
+                                        ? 'None'
+                                        : mappedCb.supervision.substring(2)}
+                                    </p>`
+                                  : nothing}`
+                            : nothing}
+                        </td>`;
+                      })}
+                    </tr>`
+                )}`
+          )}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  renderStencilSelectionAndUse(): TemplateResult {
+    if (this.stencilData.applications.length === 0)
+      return html`<p>No applications exist in the current stencil.</p>`;
+
+    return html`<section>
         <div id="appMaker">
           <div>
             <h2 id="appMenuHeader">
               Select Application
-              <md-icon-button id="menuApplicationsButton"
+              <md-icon-button
+                id="menuApplicationsButton"
+                @click=${() => {
+                  this.menuAppUI.open = !this.menuAppUI.open;
+                }}
                 ><md-icon>more_vert</md-icon></md-icon-button
               >
               <md-menu
@@ -856,7 +908,8 @@ export default class Stencil extends LitElement {
                             <div slot="headline">${app.name}</div>
                             <div slot="supporting-text">
                               ${app.description}${availableVersion?.description ===
-                              undefined
+                                undefined ||
+                              availableVersion?.description === ''
                                 ? ''
                                 : ` - ${availableVersion?.description}`}
                             </div>
@@ -874,6 +927,43 @@ export default class Stencil extends LitElement {
           ${this.renderIedsForUse()}
         </div>
       </section>
+      <section>${this.renderApplicationDetails()}</section>`;
+  }
+
+  renderUse(): TemplateResult {
+    if (!this.doc)
+      return html`<h1>Please open a file to use this functionality</h1>`;
+
+    return html`
+      <div id="headline">
+        <h1 id="stencilName">
+          ${this.stencilData.name}<code id="stencilVersion"
+            >${this.stencilData.version}</code
+          >
+        </h1>
+        <div id="menuUse">
+          <md-outlined-button
+            id="changeStencilBtn"
+            class="button"
+            @click=${() => {
+              this.changeStencilUI.click();
+            }}
+            >Open
+            <md-icon slot="icon">file_open</md-icon>
+          </md-outlined-button>
+          <md-outlined-button
+            id="saveStencilBtn"
+            class="button"
+            @click=${() => {
+              this.saveStencilAsFile();
+            }}
+            >Save
+            <md-icon slot="icon">file_save</md-icon>
+          </md-outlined-button>
+        </div>
+      </div>
+
+      ${this.renderStencilSelectionAndUse()}
       <input
         id="changeStencil"
         @click=${({ target }: MouseEvent) => {
@@ -926,7 +1016,17 @@ export default class Stencil extends LitElement {
     }));
 
     return html`<h1>Select Template Control Blocks</h1>
-      <div class="group">
+      <div class="columngroup">
+        <label
+          ><md-checkbox
+            touch-target="wrapper"
+            ?checked=${true}
+            @change=${() => {
+              this.showSupervisions = !this.showSupervisions;
+            }}
+          ></md-checkbox
+          >Show Supervisions</label
+        >
         <table>
           <caption>
             Control Block Mappings
@@ -981,54 +1081,62 @@ export default class Stencil extends LitElement {
                           >
                             ${mappedCb && this.templateCreationStage < 2
                               ? html`<md-checkbox
-                                  class="cb ${mappedCb &&
-                                  mappedCb.type === 'SampledValueControl'
-                                    ? 'sv'
-                                    : ''}"
-                                  data-fromIed="${row.fromIed}"
-                                  data-fromCb="${cbName}"
-                                  data-toIed="${toIed}"
-                                  touch-target="wrapper"
-                                  ?checked=${true}
-                                  @change=${(event: Event) => {
-                                    // eslint-disable-next-line prefer-destructuring
-                                    const target = event.target as MdCheckbox;
-                                    // const { fromcb, fromied, toied } =
-                                    //   target.dataset!;
+                                    class="cb ${mappedCb &&
+                                    mappedCb.type === 'SampledValueControl'
+                                      ? 'sv'
+                                      : ''}"
+                                    data-fromIed="${row.fromIed}"
+                                    data-fromCb="${cbName}"
+                                    data-toIed="${toIed}"
+                                    touch-target="wrapper"
+                                    ?checked=${true}
+                                    @change=${(event: Event) => {
+                                      // eslint-disable-next-line prefer-destructuring
+                                      const target = event.target as MdCheckbox;
+                                      // const { fromcb, fromied, toied } =
+                                      //   target.dataset!;
 
-                                    // const cbObject: ControlBlockTableMapping = {
-                                    //   id: fromcb!,
-                                    //   from: fromied!,
-                                    //   to: toied!
-                                    // };
+                                      // const cbObject: ControlBlockTableMapping = {
+                                      //   id: fromcb!,
+                                      //   from: fromied!,
+                                      //   to: toied!
+                                      // };
 
-                                    if (
-                                      // we use true to remove because the UI
-                                      // update has not yet happened
-                                      target.checked === true
-                                    ) {
-                                      this.createCBsToRemove =
-                                        this.createCBsToRemove.filter(
-                                          cb =>
-                                            cb.id === cbName &&
-                                            cb.from === row.fromIed &&
-                                            cb.to === toIed
-                                          // cb.id === cbObject.id &&
-                                          // cb.from === cbObject.from &&
-                                          // cb.to === cbObject.to
+                                      if (
+                                        // we use true to remove because the UI
+                                        // update has not yet happened
+                                        target.checked === true
+                                      ) {
+                                        this.createCBsToRemove =
+                                          this.createCBsToRemove.filter(
+                                            cb =>
+                                              cb.id === cbName &&
+                                              cb.from === row.fromIed &&
+                                              cb.to === toIed
+                                            // cb.id === cbObject.id &&
+                                            // cb.from === cbObject.from &&
+                                            // cb.to === cbObject.to
+                                          );
+                                      } else if (target.checked === false) {
+                                        this.createCBsToRemove.push(
+                                          {
+                                            id: cbName,
+                                            from: row.fromIed,
+                                            to: toIed!
+                                          }!
                                         );
-                                    } else if (target.checked === false) {
-                                      this.createCBsToRemove.push(
-                                        {
-                                          id: cbName,
-                                          from: row.fromIed,
-                                          to: toIed!
-                                        }!
-                                      );
-                                    }
-                                    // console.log(this.createCBsToRemove);
-                                  }}
-                                ></md-checkbox>`
+                                      }
+                                      // console.log(this.createCBsToRemove);
+                                    }}
+                                  ></md-checkbox>
+
+                                  ${this.showSupervisions
+                                    ? html`<p id="supervisionInfo">
+                                        ${mappedCb.supervision === 'None'
+                                          ? 'None'
+                                          : mappedCb.supervision.substring(2)}
+                                      </p>`
+                                    : nothing}`
                               : nothing}
                             ${mappedCb &&
                             !this.createCBsToRemove.find(
@@ -1059,6 +1167,7 @@ export default class Stencil extends LitElement {
         ?disabled=${this.iedMappingStencilData.length === 0}
         @click=${() => {
           this.templateCreationStage = 2;
+          this.uniqueIeds = [];
 
           // remove unused control blocks
           // TODO: Does this suggest my data structure is bad?
@@ -1109,11 +1218,18 @@ export default class Stencil extends LitElement {
   renderOutputJSON(): TemplateResult {
     return html`<div class="output">
       <md-outlined-text-field
-        class="outputView"
+        id="outputView"
         type="textarea"
-        label="Stencil Output File"
+        label="Stencil Settings File"
+        @change=${(event: Event) => {
+          const target = event.target as MdOutlinedTextField;
+          if (target) {
+            this.stencilData = JSON.parse(target.value);
+            this.requestUpdate();
+          }
+        }}
         value="${JSON.stringify(this.stencilData, null, 2)}"
-        rows="10"
+        rows="20"
       >
       </md-outlined-text-field>
       <md-outlined-button
@@ -1126,7 +1242,6 @@ export default class Stencil extends LitElement {
   }
 
   renderCreate(): TemplateResult {
-    this.createEventListeners = false;
     if (!this.doc)
       return html`<h1>Please open a file to use this functionality</h1>`;
     return html`
@@ -1149,8 +1264,8 @@ export default class Stencil extends LitElement {
         class="button"
         @click=${() => {
           this.stencilData.name = this.stencilName.value.trim();
-          this.stencilData.version = this.stencilName.value.trim();
-          this.resetApplication();
+          this.stencilData.version = this.stencilVersion.value.trim();
+          this.resetCreateApplication();
         }}
         >Update Stencil Metadata
         <md-icon slot="icon">sync_alt</md-icon>
@@ -1160,32 +1275,39 @@ export default class Stencil extends LitElement {
         <md-outlined-button
           class="button"
           @click=${() => {
-            this.templateCreationStage = 0;
-            this.iedMappingStencilData = [];
-            this.uniqueIeds = [];
-            this.createCBsToRemove = [];
+            this.resetCreateApplication();
+            this.appCategory.value = '';
+            this.appName.value = '';
+            this.appDesc.value = '';
+            this.appVer.value = '';
+            this.appVerDesc.value = '';
+            this.appDeprecated.checked = false;
           }}
           >Reset Application
           <md-icon slot="icon">draw_collage</md-icon>
         </md-outlined-button>
       </h1>
       <div class="group appinf">
-        <md-outlined-text-field id="appcat" label="Category" value="">
+        <md-outlined-text-field
+          id="appcat"
+          label="Category"
+          @change=${() => this.requestUpdate()}
+        >
         </md-outlined-text-field>
-        <md-outlined-text-field id="appname" label="Name" value="">
+        <md-outlined-text-field
+          id="appname"
+          label="Name"
+          @change=${() => this.requestUpdate()}
+        >
         </md-outlined-text-field>
-        <md-outlined-text-field id="appdesc" label="Description" value="">
+        <md-outlined-text-field id="appdesc" label="Description">
         </md-outlined-text-field>
         <md-outlined-text-field
           id="appver"
           label="Version"
-          value="1.0.0"
+          @change=${() => this.requestUpdate()}
         ></md-outlined-text-field>
-        <md-outlined-text-field
-          id="appverdesc"
-          label="Version Description"
-          value=""
-        >
+        <md-outlined-text-field id="appverdesc" label="Version Description">
         </md-outlined-text-field>
         <label id="deprecated">
           <md-checkbox id="appdeprecated" touch-target="wrapper"></md-checkbox>
@@ -1195,6 +1317,12 @@ export default class Stencil extends LitElement {
       <div class="group">
         <md-filled-button
           class="button"
+          ?disabled=${!this.appCategory ||
+          !this.appName ||
+          !this.appVer ||
+          this.appCategory?.value.trim() === '' ||
+          this.appName?.value.trim() === '' ||
+          this.appVer?.value.trim() === ''}
           @click=${() => this.iedTemplateSelectorUI.show()}
           >Add IEDs
           <md-icon slot="icon">developer_board</md-icon>
@@ -1277,6 +1405,28 @@ export default class Stencil extends LitElement {
     return this.renderOutputJSON();
   }
 
+  renderErrorMessages(): TemplateResult {
+    return html`<md-dialog
+      id="error-dialog"
+      @cancel=${(event: Event) => {
+        event.preventDefault();
+        // this.clearSelection();
+      }}
+    >
+      <div slot="headline">Errors occurred during template processing</div>
+      <p>${this.errorMessages.join('\n')}</p>
+      <div slot="actions">
+        <md-text-button
+          @click="${() => {
+            this.errorMessages = [];
+            this.errorDialogUI.close();
+          }}"
+          >Close</md-text-button
+        >
+      </div></md-dialog
+    >`;
+  }
+
   render(): TemplateResult {
     return html`<mwc-tab-bar
         @MDCTabBar:activated=${({
@@ -1296,13 +1446,19 @@ export default class Stencil extends LitElement {
         ${this.tabIndex === 1 ? this.renderCreate() : nothing}
         ${this.tabIndex === 2 ? this.renderView() : nothing}
       </section>
-      ${this.renderTemplateIedsSelector()} ${this.renderFunctionIedSelector()}`;
+      ${this.renderTemplateIedsSelector()} ${this.renderFunctionIedSelector()}
+      <mwc-snackbar id="snackBarMessage" labelText="${this.snackBarMessage}">
+      </mwc-snackbar>
+      ${this.renderErrorMessages()}`;
   }
 
   static styles = css`
     :host {
       display: flex;
       flex-direction: column;
+
+      /* incompatibilities in our themeing */
+      --md-sys-color-surface: none;
 
       --secondaryThemeFallback: #018786;
       --scrollbarBG: var(--mdc-theme-background, #cfcfcf00);
@@ -1327,8 +1483,6 @@ export default class Stencil extends LitElement {
       color: var(--mdc-theme-on-surface);
       font-family: 'Roboto', sans-serif;
       font-weight: 300;
-      overflow: hidden;
-      white-space: nowrap;
       text-overflow: ellipsis;
       margin: 0px;
       padding-left: 0.3em;
@@ -1338,11 +1492,17 @@ export default class Stencil extends LitElement {
       color: var(--mdc-theme-on-surface);
       font-family: 'Roboto', sans-serif;
       font-weight: normal;
+      display: flex;
+      align-items: center;
     }
 
-    mwc-tab-bar,
-    .output {
+    mwc-tab-bar {
       width: 100%;
+    }
+
+    #outputView {
+      width: 100%;
+      height: 80vh;
       display: block;
       margin-top: 20px;
       --md-outlined-text-field-input-text-font: 'Roboto Mono';
@@ -1399,6 +1559,12 @@ export default class Stencil extends LitElement {
     .group {
       display: flex;
       flex-direction: row;
+    }
+
+    .columngroup {
+      display: flex;
+      flex-direction: column;
+      max-width: max-content;
     }
 
     .appIed {
@@ -1491,6 +1657,8 @@ export default class Stencil extends LitElement {
       text-align: left;
       padding-left: 5px;
       padding-right: 5px;
+      position: sticky;
+      left: 0px;
     }
 
     md-checkbox.cb {
@@ -1515,6 +1683,27 @@ export default class Stencil extends LitElement {
 
     #menuUse {
       display: inline-flex;
+    }
+
+    #appUseInfo {
+      width: 470px;
+      padding-left: 30px;
+      text-overflow: clip;
+      overflow: auto;
+      line-height: 1.4;
+    }
+
+    #appContainer {
+      padding-left: 20px;
+    }
+
+    #controlBlockMappings {
+      display: block;
+      padding-left: 20px;
+    }
+
+    #supervisionInfo {
+      font-size: 10px;
     }
   `;
 }
