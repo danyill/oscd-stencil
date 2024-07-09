@@ -15737,7 +15737,7 @@ class Stencil extends s$d {
             this.saveStencilAsFile();
         }}
             >Save
-            <md-icon slot="icon">file_save</md-icon>
+            <md-icon slot="icon">save</md-icon>
           </md-outlined-button>
         </div>
       </div>
@@ -16226,7 +16226,7 @@ Stencil.styles = i$a `
 
     #outputView {
       width: 100%;
-      height: 80vh;
+      max-height: 80vh;
       display: block;
       margin-top: 20px;
       --md-outlined-text-field-input-text-font: 'Roboto Mono';
