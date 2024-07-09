@@ -1,4 +1,11 @@
-import { css, html, LitElement, nothing, TemplateResult } from 'lit';
+import {
+  css,
+  html,
+  LitElement,
+  nothing,
+  PropertyValues,
+  TemplateResult
+} from 'lit';
 
 import { property, query, queryAll } from 'lit/decorators.js';
 
@@ -44,9 +51,15 @@ import { combinations } from './combinations.js';
 import { getIedDescription } from './getIedDescription.js';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const defaultStencil = await fetch(
-  new URL('./default_stencil.json', import.meta.url)
-).then(res => res.json());
+// const defaultStencil = await fetch(
+//   new URL('./default_stencil.json', import.meta.url)
+// ).then(res => res.json());
+
+const defaultStencil = {
+  name: 'Noname',
+  version: '0.0.1',
+  applications: []
+};
 
 type IED = {
   originalName: string;
@@ -108,11 +121,7 @@ export default class Stencil extends LitElement {
 
   @property() uniqueIeds: string[] = [];
 
-  @property() stencilData: StencilData = {
-    name: 'Noname',
-    version: '0.0.1',
-    applications: []
-  };
+  @property() stencilData: StencilData = defaultStencil;
 
   @property() selectedApplication: VersionedApplications | null = null;
 
@@ -345,6 +354,8 @@ export default class Stencil extends LitElement {
       };
     }
 
+    this.storeSettings();
+
     this.snackBarMessage = `New application created: ${
       this.appCategory.value.trim() ?? 'UnknownCategory'
     } > ${this.appName.value.trim() ?? 'UnknownName'}`;
@@ -414,6 +425,7 @@ export default class Stencil extends LitElement {
 
     const text = await file.text();
     this.stencilData = JSON.parse(text);
+    this.storeSettings();
 
     this.changeStencilUI.onchange = null;
   }
@@ -492,11 +504,11 @@ export default class Stencil extends LitElement {
         const newSupervisionId = newIedIdentity(newToIed, cb.supervision);
         const newSupervision = find(this.doc, 'LN', newSupervisionId);
 
-        if (!newSupervision) {
+        if (!newSupervision && cb.supervision !== 'None') {
           this.errorMessages.push(
             `Could not find Supervision: ${newSupervisionId}`
           );
-        } else {
+        } else if (cb.supervision !== 'None') {
           const supervision = instantiateSubscriptionSupervision(
             {
               subscriberIedOrLn: newSupervision!,
@@ -539,6 +551,38 @@ export default class Stencil extends LitElement {
 
   resetApplyStencil(): void {
     this.functionToIed = new Map<string, string>();
+  }
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    // restore settings from local storage on plugin loading
+    this.restoreSettings();
+  }
+
+  /**
+   * Restore settings from local storage, applying appropriate defaults
+   * if not set.
+   */
+  protected restoreSettings(): void {
+    const storedSettings = localStorage.getItem('oscd-stencil');
+
+    this.stencilData = storedSettings
+      ? JSON.parse(storedSettings)
+      : defaultStencil;
+  }
+
+  protected storeSettings(): void {
+    localStorage.setItem('oscd-stencil', JSON.stringify(this.stencilData));
+  }
+
+  protected updated(changedProperties: PropertyValues): void {
+    super.updated(changedProperties);
+
+    // update local storage for stored plugin settings
+    const storageUpdateRequired = Array.from(changedProperties.keys()).some(
+      prop => prop === 'stencilData'
+    );
+    if (storageUpdateRequired) this.storeSettings();
   }
 
   renderFunctionIedSelector(): TemplateResult {
@@ -1225,6 +1269,9 @@ export default class Stencil extends LitElement {
           const target = event.target as MdOutlinedTextField;
           if (target) {
             this.stencilData = JSON.parse(target.value);
+            this.storeSettings();
+            this.snackBarMessage = 'Stencil settings updated';
+            this.snackBarMessageUI.show();
             this.requestUpdate();
           }
         }}
@@ -1265,6 +1312,7 @@ export default class Stencil extends LitElement {
         @click=${() => {
           this.stencilData.name = this.stencilName.value.trim();
           this.stencilData.version = this.stencilVersion.value.trim();
+          this.storeSettings();
           this.resetCreateApplication();
         }}
         >Update Stencil Metadata
@@ -1408,6 +1456,7 @@ export default class Stencil extends LitElement {
   renderErrorMessages(): TemplateResult {
     return html`<md-dialog
       id="error-dialog"
+      type="alert"
       @cancel=${(event: Event) => {
         event.preventDefault();
         // this.clearSelection();
@@ -1415,6 +1464,10 @@ export default class Stencil extends LitElement {
     >
       <div slot="headline">Errors occurred during template processing</div>
       <div slot="content">
+        <p>
+          The template was <em>not applied fully and correctly</em>. Either make
+          changes manually or revert to a previous scd file.
+        </p>
         <ul>
           ${this.errorMessages.map(message => html`<li>${message}</li>`)}
         </ul>
