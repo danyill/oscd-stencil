@@ -691,37 +691,41 @@ export default class Stencil extends LitElement {
             </div>
             <h2>Select IEDs for Function</h2>
             <md-list id="iedsAndFunctions">
-              ${Object.keys(this.selectedAppVersion.IEDS).map(iedFunction => {
-                const ied = this.selectedAppVersion!.IEDS[iedFunction];
+              ${Object.keys(this.selectedAppVersion.IEDS)
+                .sort((iedA, iedB) =>
+                  iedA.toLowerCase().localeCompare(iedB.toLowerCase())
+                )
+                .map(iedFunction => {
+                  const ied = this.selectedAppVersion!.IEDS[iedFunction];
 
-                return html`
-                  <md-list-item
-                    type="button"
-                    @click=${() => {
-                      this.applicationSelectedFunction = iedFunction;
-                      this.applicationSelectedFunctionReqs = ied;
-                      // = (<HTMLElement>event.target).closest('md-list-item')
+                  return html`
+                    <md-list-item
+                      type="button"
+                      @click=${() => {
+                        this.applicationSelectedFunction = iedFunction;
+                        this.applicationSelectedFunctionReqs = ied;
+                        // = (<HTMLElement>event.target).closest('md-list-item')
 
-                      this.iedSelectorUI.show();
-                    }}
-                  >
-                    <div slot="headline">
-                      ${iedFunction}${this.functionToIed.get(iedFunction)
-                        ? `  ⮕  ${this.functionToIed.get(iedFunction)}`
-                        : nothing}
-                    </div>
-                    <div slot="supporting-text">
-                      ${ied.manufacturer} - ${ied.type}
-                    </div>
-                    <md-icon slot="start">developer_board</md-icon>
-                    <md-icon slot="end"
-                      >${this.functionToIed.get(iedFunction) !== undefined
-                        ? 'check_box'
-                        : 'check_box_outline_blank'}</md-icon
+                        this.iedSelectorUI.show();
+                      }}
                     >
-                  </md-list-item>
-                `;
-              })}
+                      <div slot="headline">
+                        ${iedFunction}${this.functionToIed.get(iedFunction)
+                          ? `  ⮕  ${this.functionToIed.get(iedFunction)}`
+                          : nothing}
+                      </div>
+                      <div slot="supporting-text">
+                        ${ied.manufacturer} - ${ied.type}
+                      </div>
+                      <md-icon slot="start">developer_board</md-icon>
+                      <md-icon slot="end"
+                        >${this.functionToIed.get(iedFunction) !== undefined
+                          ? 'check_box'
+                          : 'check_box_outline_blank'}</md-icon
+                      >
+                    </md-list-item>
+                  `;
+                })}
             </md-list>
             <md-outlined-button
               class="button"
@@ -750,13 +754,13 @@ export default class Stencil extends LitElement {
 
     const toIedNames = this.selectedAppVersion!.ControlBlocks.map(cb => cb.to)
       .filter((item, i, ar) => ar.indexOf(item) === i)
-      .sort();
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 
     const rowIedNames = this.selectedAppVersion!.ControlBlocks.map(
       cb => cb.from
     )
       .filter((item, i, ar) => ar.indexOf(item) === i)
-      .sort();
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 
     const iedFromWithCBs = new Map<string, string[]>();
     rowIedNames.forEach(ied => {
@@ -812,51 +816,54 @@ export default class Stencil extends LitElement {
                     colspan="${toIedNames.length}"
                   ></th>
                 </tr>
-                ${row.cbs!.map(
-                  cbName =>
-                    html`<tr>
-                      <th
-                        scope="row"
-                        class="cbname"
-                        data-fromIed="${row.fromIed}"
-                        data-fromCb="${cbName}"
-                      >
-                        ${cbName.substring(2)}
-                      </th>
-                      ${toIedNames.map(toIed => {
-                        const mappedCb =
-                          this.selectedAppVersion!.ControlBlocks.find(
-                            cb =>
-                              cb.id === cbName &&
-                              cb.from === row.fromIed &&
-                              cb.to === toIed
-                          );
-                        return html`<td
-                          class="${mappedCb ? 'mapcell' : ''} ${row.fromIed ===
-                          toIed
-                            ? 'diagonal'
-                            : ''}"
+                ${row
+                  .cbs!.sort((a, b) =>
+                    a.toLowerCase().localeCompare(b.toLowerCase())
+                  )
+                  .map(
+                    cbName =>
+                      html`<tr>
+                        <th
+                          scope="row"
+                          class="cbname"
+                          data-fromIed="${row.fromIed}"
+                          data-fromCb="${cbName}"
                         >
-                          ${mappedCb
-                            ? html`<md-icon
-                                  class="cb ${mappedCb &&
-                                  mappedCb.type === 'SampledValueControl'
-                                    ? 'sv'
-                                    : ''}"
-                                  >check</md-icon
-                                >
-                                ${this.showSupervisions
-                                  ? html`<p id="supervisionInfo">
-                                      ${mappedCb.supervision === 'None'
-                                        ? 'None'
-                                        : mappedCb.supervision.substring(2)}
-                                    </p>`
-                                  : nothing}`
-                            : nothing}
-                        </td>`;
-                      })}
-                    </tr>`
-                )}`
+                          ${cbName.substring(2)}
+                        </th>
+                        ${toIedNames.map(toIed => {
+                          const mappedCb =
+                            this.selectedAppVersion!.ControlBlocks.find(
+                              cb =>
+                                cb.id === cbName &&
+                                cb.from === row.fromIed &&
+                                cb.to === toIed
+                            );
+                          return html`<td
+                            class="${mappedCb
+                              ? 'mapcell'
+                              : ''} ${row.fromIed === toIed ? 'diagonal' : ''}"
+                          >
+                            ${mappedCb
+                              ? html`<md-icon
+                                    class="cb ${mappedCb &&
+                                    mappedCb.type === 'SampledValueControl'
+                                      ? 'sv'
+                                      : ''}"
+                                    >check</md-icon
+                                  >
+                                  ${this.showSupervisions
+                                    ? html`<p id="supervisionInfo">
+                                        ${mappedCb.supervision === 'None'
+                                          ? 'None'
+                                          : mappedCb.supervision.substring(2)}
+                                      </p>`
+                                    : nothing}`
+                              : nothing}
+                          </td>`;
+                        })}
+                      </tr>`
+                  )}`
           )}
         </tbody>
       </table>
@@ -911,6 +918,9 @@ export default class Stencil extends LitElement {
                 )
                 .map(app => app.category)
                 .filter((item, i, ar) => ar.indexOf(item) === i)
+                .sort((catA, catB) =>
+                  catA.toLowerCase().localeCompare(catB.toLowerCase())
+                )
                 .map(
                   appCategory =>
                     html` <md-list-item data-cat="${appCategory}">
@@ -919,6 +929,11 @@ export default class Stencil extends LitElement {
                       </md-list-item>
                       ${this.stencilData.applications
                         .filter(app => app.category === appCategory)
+                        .sort((vAppsA, vAppsB) =>
+                          `${vAppsA.name}`
+                            .toLowerCase()
+                            .localeCompare(`${vAppsB.name}`.toLowerCase())
+                        )
                         .flatMap(app => {
                           let availableVersion = null;
                           if (this.showDeprecated === false)
@@ -1036,7 +1051,7 @@ export default class Stencil extends LitElement {
     const toIedNames = this.iedMappingStencilData
       .map(cb => cb.to)
       .filter((item, i, ar) => ar.indexOf(item) === i)
-      .sort();
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 
     const rowIedNames = this.iedMappingStencilData
       .map(cb => cb.from)
@@ -1100,108 +1115,115 @@ export default class Stencil extends LitElement {
                       colspan="${toIedNames.length}"
                     ></th>
                   </tr>
-                  ${row.cbs!.map(
-                    cbName =>
-                      html`<tr>
-                        <th
-                          scope="row"
-                          class="cbname"
-                          data-fromIed="${row.fromIed}"
-                          data-fromCb="${cbName}"
-                        >
-                          ${cbName.substring(2)}
-                        </th>
-                        ${toIedNames.map(toIed => {
-                          const mappedCb = this.iedMappingStencilData.find(
-                            cb =>
-                              cb.id === cbName &&
-                              cb.from === row.fromIed &&
-                              cb.to === toIed
-                          );
-                          return html`<td
-                            class="${mappedCb
-                              ? 'mapcell'
-                              : ''} ${row.fromIed === toIed ? 'diagonal' : ''}"
+                  ${row
+                    .cbs!.sort((a, b) =>
+                      a.toLowerCase().localeCompare(b.toLowerCase())
+                    )
+                    .map(
+                      cbName =>
+                        html`<tr>
+                          <th
+                            scope="row"
+                            class="cbname"
+                            data-fromIed="${row.fromIed}"
+                            data-fromCb="${cbName}"
                           >
-                            ${mappedCb && this.templateCreationStage < 2
-                              ? html`<md-checkbox
+                            ${cbName.substring(2)}
+                          </th>
+                          ${toIedNames.map(toIed => {
+                            const mappedCb = this.iedMappingStencilData.find(
+                              cb =>
+                                cb.id === cbName &&
+                                cb.from === row.fromIed &&
+                                cb.to === toIed
+                            );
+                            return html`<td
+                              class="${mappedCb
+                                ? 'mapcell'
+                                : ''} ${row.fromIed === toIed
+                                ? 'diagonal'
+                                : ''}"
+                            >
+                              ${mappedCb && this.templateCreationStage < 2
+                                ? html`<md-checkbox
+                                      class="cb ${mappedCb &&
+                                      mappedCb.type === 'SampledValueControl'
+                                        ? 'sv'
+                                        : ''}"
+                                      data-fromIed="${row.fromIed}"
+                                      data-fromCb="${cbName}"
+                                      data-toIed="${toIed}"
+                                      touch-target="wrapper"
+                                      ?checked=${true}
+                                      @change=${(event: Event) => {
+                                        // eslint-disable-next-line prefer-destructuring
+                                        const target =
+                                          event.target as MdCheckbox;
+                                        // const { fromcb, fromied, toied } =
+                                        //   target.dataset!;
+
+                                        // const cbObject: ControlBlockTableMapping = {
+                                        //   id: fromcb!,
+                                        //   from: fromied!,
+                                        //   to: toied!
+                                        // };
+
+                                        if (
+                                          // we use true to remove because the UI
+                                          // update has not yet happened
+                                          target.checked === true
+                                        ) {
+                                          this.createCBsToRemove =
+                                            this.createCBsToRemove.filter(
+                                              cb =>
+                                                cb.id === cbName &&
+                                                cb.from === row.fromIed &&
+                                                cb.to === toIed
+                                              // cb.id === cbObject.id &&
+                                              // cb.from === cbObject.from &&
+                                              // cb.to === cbObject.to
+                                            );
+                                        } else if (target.checked === false) {
+                                          this.createCBsToRemove.push(
+                                            {
+                                              id: cbName,
+                                              from: row.fromIed,
+                                              to: toIed!
+                                            }!
+                                          );
+                                        }
+                                        // console.log(this.createCBsToRemove);
+                                      }}
+                                    ></md-checkbox>
+
+                                    ${this.showSupervisions
+                                      ? html`<p id="supervisionInfo">
+                                          ${mappedCb.supervision === 'None'
+                                            ? 'None'
+                                            : mappedCb.supervision.substring(2)}
+                                        </p>`
+                                      : nothing}`
+                                : nothing}
+                              ${mappedCb &&
+                              !this.createCBsToRemove.find(
+                                cb =>
+                                  cb.id === cbName &&
+                                  cb.from === row.fromIed &&
+                                  cb.to === toIed!
+                              ) &&
+                              this.templateCreationStage >= 2
+                                ? html`<md-icon
                                     class="cb ${mappedCb &&
                                     mappedCb.type === 'SampledValueControl'
                                       ? 'sv'
                                       : ''}"
-                                    data-fromIed="${row.fromIed}"
-                                    data-fromCb="${cbName}"
-                                    data-toIed="${toIed}"
-                                    touch-target="wrapper"
-                                    ?checked=${true}
-                                    @change=${(event: Event) => {
-                                      // eslint-disable-next-line prefer-destructuring
-                                      const target = event.target as MdCheckbox;
-                                      // const { fromcb, fromied, toied } =
-                                      //   target.dataset!;
-
-                                      // const cbObject: ControlBlockTableMapping = {
-                                      //   id: fromcb!,
-                                      //   from: fromied!,
-                                      //   to: toied!
-                                      // };
-
-                                      if (
-                                        // we use true to remove because the UI
-                                        // update has not yet happened
-                                        target.checked === true
-                                      ) {
-                                        this.createCBsToRemove =
-                                          this.createCBsToRemove.filter(
-                                            cb =>
-                                              cb.id === cbName &&
-                                              cb.from === row.fromIed &&
-                                              cb.to === toIed
-                                            // cb.id === cbObject.id &&
-                                            // cb.from === cbObject.from &&
-                                            // cb.to === cbObject.to
-                                          );
-                                      } else if (target.checked === false) {
-                                        this.createCBsToRemove.push(
-                                          {
-                                            id: cbName,
-                                            from: row.fromIed,
-                                            to: toIed!
-                                          }!
-                                        );
-                                      }
-                                      // console.log(this.createCBsToRemove);
-                                    }}
-                                  ></md-checkbox>
-
-                                  ${this.showSupervisions
-                                    ? html`<p id="supervisionInfo">
-                                        ${mappedCb.supervision === 'None'
-                                          ? 'None'
-                                          : mappedCb.supervision.substring(2)}
-                                      </p>`
-                                    : nothing}`
-                              : nothing}
-                            ${mappedCb &&
-                            !this.createCBsToRemove.find(
-                              cb =>
-                                cb.id === cbName &&
-                                cb.from === row.fromIed &&
-                                cb.to === toIed!
-                            ) &&
-                            this.templateCreationStage >= 2
-                              ? html`<md-icon
-                                  class="cb ${mappedCb &&
-                                  mappedCb.type === 'SampledValueControl'
-                                    ? 'sv'
-                                    : ''}"
-                                  >check</md-icon
-                                >`
-                              : nothing}
-                          </td>`;
-                        })}
-                      </tr>`
-                  )}`
+                                    >check</md-icon
+                                  >`
+                                : nothing}
+                            </td>`;
+                          })}
+                        </tr>`
+                    )}`
             )}
           </tbody>
         </table>
@@ -1240,15 +1262,17 @@ export default class Stencil extends LitElement {
   renderIedsToFunctionNaming(): TemplateResult {
     return html`<h1>Name IEDs with Functions</h1>
       <div class="group appinf" id="function">
-        ${this.uniqueIeds.map(
-          ied =>
-            html`<md-outlined-text-field
-              class="iedfunction"
-              data-ied="${ied}"
-              label="IED Function (was ${ied})"
-              value="${ied}"
-            ></md-outlined-text-field>`
-        )}
+        ${this.uniqueIeds
+          .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+          .map(
+            ied =>
+              html`<md-outlined-text-field
+                class="iedfunction"
+                data-ied="${ied}"
+                label="IED Function (was ${ied})"
+                value="${ied}"
+              ></md-outlined-text-field>`
+          )}
       </div>
       <md-filled-button
         class="button"
