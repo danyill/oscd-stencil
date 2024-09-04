@@ -644,6 +644,12 @@ export default class Stencil extends LitElement {
                     )
                   );
                 })
+                .filter(
+                  ied =>
+                    !Array.from(this.functionToIed.values()).includes(
+                      ied.getAttribute('name')!
+                    )
+                )
                 .map(ied => {
                   const { firstLine, secondLine } = getIedDescription(ied);
 
