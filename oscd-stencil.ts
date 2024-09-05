@@ -1393,7 +1393,7 @@ export default class Stencil extends LitElement {
         // this.clearSelection();
       }}
     >
-      <div slot="headline">Select IEDs to create a template mapping</div>
+      <div slot="headline">Select IEDs to create a stencil application</div>
       <form slot="content" id="selection" method="dialog">
         <selection-list
           id="selection-list"
@@ -1616,6 +1616,11 @@ export default class Stencil extends LitElement {
     .group {
       display: flex;
       flex-direction: row;
+    }
+
+    .group.appinf {
+      max-width: 95vw;
+      flex-wrap: wrap;
     }
 
     .columngroup {
