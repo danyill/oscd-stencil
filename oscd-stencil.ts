@@ -34,6 +34,7 @@ import type { SelectionList } from '@openenergytools/filterable-lists/dist/selec
 import type { MdIconButton } from '@material/web/iconbutton/icon-button.js';
 import type { MdMenu } from '@material/web/menu/menu';
 import type { Snackbar } from '@material/mwc-snackbar/mwc-snackbar.js';
+import type { MdListItem } from '@material/web/list/list-item.js';
 
 import {
   Connection,
@@ -189,6 +190,9 @@ export default class Stencil extends LitElement {
   @query('#snackBarMessage') snackBarMessageUI!: Snackbar;
 
   @query('#error-dialog') errorDialogUI!: MdDialog;
+
+  @query('#applications > md-list-item.selected')
+  selectedApplicationUI!: MdListItem;
 
   // eslint-disable-next-line no-useless-constructor
   constructor() {
@@ -684,19 +688,8 @@ export default class Stencil extends LitElement {
     return html`${
       this.selectedApplication && this.selectedAppVersion
         ? html`<div id="appContainer">
-            <h2>${this.selectedApplication.category}</h2>
-            <div id="appUseInfo">
-              <h3>${this.selectedApplication.name}</h3>
-              <p>
-                ${this.selectedApplication.description}${this.selectedAppVersion
-                  ?.description === undefined ||
-                this.selectedAppVersion?.description === ''
-                  ? ''
-                  : ` - ${this.selectedAppVersion?.description}`}
-              </p>
-            </div>
             <h2>Select IEDs for Function</h2>
-            <md-list id="iedsAndFunctions">
+            <md-list id="iedsAndFunctions" class="scrollable">
               ${Object.keys(this.selectedAppVersion.IEDS)
                 .sort((iedA, iedB) =>
                   iedA.toLowerCase().localeCompare(iedB.toLowerCase())
@@ -785,6 +778,7 @@ export default class Stencil extends LitElement {
     }));
 
     return html`<div id="controlBlockMappings" class="columngroup">
+      <h2>Application Details</h2>
       <label
         ><md-checkbox
           touch-target="wrapper"
@@ -880,7 +874,7 @@ export default class Stencil extends LitElement {
     if (this.stencilData.applications.length === 0)
       return html`<p>No applications exist in the current stencil.</p>`;
 
-    return html`<section>
+    return html`<section id="appSelection">
         <div id="appMaker">
           <div>
             <h2 id="appMenuHeader">
@@ -914,7 +908,7 @@ export default class Stencil extends LitElement {
                 </md-menu-item>
               </md-menu>
             </h2>
-            <md-list id="applications"
+            <md-list id="applications" class="scrollable"
               >${this.stencilData.applications
                 .filter(
                   app =>
@@ -988,6 +982,58 @@ export default class Stencil extends LitElement {
                         })}`
                 )}</md-list
             >
+            <md-outlined-button
+              class="button"
+              @click=${() => {
+                // application that already matches parameters
+
+                if (!this.selectedApplication) return;
+
+                const otherAppVersions = [
+                  ...this.selectedApplication.versions.filter(
+                    appVer =>
+                      appVer.version !== this.selectedAppVersion?.version
+                  )
+                ];
+
+                if (otherAppVersions.length > 0) {
+                  // there are other applications with different version
+                  this.stencilData = {
+                    name: this.stencilName.value.trim(),
+                    version: this.stencilVersion.value.trim(),
+                    applications: [
+                      ...this.stencilData.applications,
+                      {
+                        category:
+                          this.appCategory.value.trim() ?? 'UnknownCategory',
+                        name: this.appName.value.trim() ?? 'UnknownName',
+                        // could also update the description this way!
+                        description: this.appDesc.value.trim(),
+                        versions: otherAppVersions
+                      }
+                    ]
+                  };
+                } else {
+                  // this was the last application, safe to remove
+                  const otherApplications = [
+                    ...this.stencilData.applications.filter(
+                      app => app !== this.selectedApplication
+                    )
+                  ];
+
+                  this.stencilData = {
+                    name: this.stencilData.name,
+                    version: this.stencilData.version,
+                    applications: otherApplications
+                  };
+                }
+                this.selectedApplicationUI.classList.remove('selected');
+                this.selectedApplication = null;
+                this.selectedAppVersion = undefined;
+              }}
+              >Delete Application
+              <md-icon slot="icon">delete</md-icon>
+            </md-outlined-button>
           </div>
           ${this.renderIedsForUse()}
         </div>
@@ -1043,17 +1089,6 @@ export default class Stencil extends LitElement {
   }
 
   renderCbSelectionTable(): TemplateResult {
-    // const iedFromWithCBs = new Map<string, string[]>();
-    // this.iedMappingStencilData.forEach(cb => {
-    //   const existingCbs = iedFromWithCBs.get(cb.from);
-    //   if (existingCbs && !existingCbs.includes(cb.id)) {
-    //     existingCbs.push(cb.id);
-    //     iedFromWithCBs.set(cb.from, existingCbs);
-    //   } else {
-    //     iedFromWithCBs.set(cb.from, [cb.id]);
-    //   }
-    // });
-
     const toIedNames = this.iedMappingStencilData
       .map(cb => cb.to)
       .filter((item, i, ar) => ar.indexOf(item) === i)
@@ -1610,10 +1645,6 @@ export default class Stencil extends LitElement {
       width: 500px;
     }
 
-    #applications {
-      height: 100%;
-    }
-
     #stencilVersion {
       padding: 10px;
     }
@@ -1630,6 +1661,11 @@ export default class Stencil extends LitElement {
     #appMaker {
       display: flex;
       flex-direction: row;
+    }
+
+    #appSelection {
+      height: calc(100vh - 280px);
+      overflow-y: clip;
     }
 
     #headline,
@@ -1787,6 +1823,7 @@ export default class Stencil extends LitElement {
 
     #appContainer {
       padding-left: 20px;
+      overflow: clip;
     }
 
     #controlBlockMappings {
@@ -1796,6 +1833,30 @@ export default class Stencil extends LitElement {
 
     #supervisionInfo {
       font-size: 10px;
+    }
+
+    #applications,
+    #iedsAndFunctions {
+      height: calc(100vh - 410px);
+      overflow-y: scroll;
+    }
+
+    .scrollable {
+      scrollbar-width: auto;
+      scrollbar-color: var(--thumbBG) var(--scrollbarBG);
+    }
+
+    .scrollable::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .scrollable::-webkit-scrollbar-track {
+      background: var(--scrollbarBG);
+    }
+
+    .scrollable::-webkit-scrollbar-thumb {
+      background: var(--thumbBG);
+      border-radius: 6px;
     }
   `;
 }
