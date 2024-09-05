@@ -16118,7 +16118,7 @@ class Stencil extends s$d {
             // this.clearSelection();
         }}
     >
-      <div slot="headline">Select IEDs to create a template mapping</div>
+      <div slot="headline">Select IEDs to create a stencil application</div>
       <form slot="content" id="selection" method="dialog">
         <selection-list
           id="selection-list"
@@ -16326,6 +16326,11 @@ Stencil.styles = i$a `
     .group {
       display: flex;
       flex-direction: row;
+    }
+
+    .group.appinf {
+      max-width: 95vw;
+      flex-wrap: wrap;
     }
 
     .columngroup {
