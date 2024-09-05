@@ -15456,6 +15456,7 @@ class Stencil extends s$d {
                     func.privates.some(priv => priv['OpenSCD-Stencil-Id'] === id &&
                         priv['OpenSCD-Stencil-Version'] === version));
             })
+                .filter(ied => !Array.from(this.functionToIed.values()).includes(ied.getAttribute('name')))
                 .map(ied => {
                 const { firstLine, secondLine } = getIedDescription(ied);
                 return {
