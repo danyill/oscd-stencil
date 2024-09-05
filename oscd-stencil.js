@@ -15486,21 +15486,10 @@ class Stencil extends s$d {
     >`;
     }
     renderIedsForUse() {
-        var _a, _b, _c;
         return x$1 `${this.selectedApplication && this.selectedAppVersion
             ? x$1 `<div id="appContainer">
-            <h2>${this.selectedApplication.category}</h2>
-            <div id="appUseInfo">
-              <h3>${this.selectedApplication.name}</h3>
-              <p>
-                ${this.selectedApplication.description}${((_a = this.selectedAppVersion) === null || _a === void 0 ? void 0 : _a.description) === undefined ||
-                ((_b = this.selectedAppVersion) === null || _b === void 0 ? void 0 : _b.description) === ''
-                ? ''
-                : ` - ${(_c = this.selectedAppVersion) === null || _c === void 0 ? void 0 : _c.description}`}
-              </p>
-            </div>
             <h2>Select IEDs for Function</h2>
-            <md-list id="iedsAndFunctions">
+            <md-list id="iedsAndFunctions" class="scrollable">
               ${Object.keys(this.selectedAppVersion.IEDS)
                 .sort((iedA, iedB) => iedA.toLowerCase().localeCompare(iedB.toLowerCase()))
                 .map(iedFunction => {
@@ -15573,6 +15562,7 @@ class Stencil extends s$d {
             cbs: iedFromWithCBs.get(iedName)
         }));
         return x$1 `<div id="controlBlockMappings" class="columngroup">
+      <h2>Application Details</h2>
       <label
         ><md-checkbox
           touch-target="wrapper"
@@ -15652,7 +15642,7 @@ class Stencil extends s$d {
     renderStencilSelectionAndUse() {
         if (this.stencilData.applications.length === 0)
             return x$1 `<p>No applications exist in the current stencil.</p>`;
-        return x$1 `<section>
+        return x$1 `<section id="appSelection">
         <div id="appMaker">
           <div>
             <h2 id="appMenuHeader">
@@ -15686,7 +15676,7 @@ class Stencil extends s$d {
                 </md-menu-item>
               </md-menu>
             </h2>
-            <md-list id="applications"
+            <md-list id="applications" class="scrollable"
               >${this.stencilData.applications
             .filter(app => app.versions.some(version => version.deprecated && this.showDeprecated) || !this.showDeprecated)
             .map(app => app.category)
@@ -15742,6 +15732,51 @@ class Stencil extends s$d {
                           </md-list-item>`;
         })}`)}</md-list
             >
+            <md-outlined-button
+              class="button"
+              @click=${() => {
+            // application that already matches parameters
+            var _a, _b;
+            if (!this.selectedApplication)
+                return;
+            const otherAppVersions = [
+                ...this.selectedApplication.versions.filter(appVer => { var _a; return appVer.version !== ((_a = this.selectedAppVersion) === null || _a === void 0 ? void 0 : _a.version); })
+            ];
+            if (otherAppVersions.length > 0) {
+                // there are other applications with different version
+                this.stencilData = {
+                    name: this.stencilName.value.trim(),
+                    version: this.stencilVersion.value.trim(),
+                    applications: [
+                        ...this.stencilData.applications,
+                        {
+                            category: (_a = this.appCategory.value.trim()) !== null && _a !== void 0 ? _a : 'UnknownCategory',
+                            name: (_b = this.appName.value.trim()) !== null && _b !== void 0 ? _b : 'UnknownName',
+                            // could also update the description this way!
+                            description: this.appDesc.value.trim(),
+                            versions: otherAppVersions
+                        }
+                    ]
+                };
+            }
+            else {
+                // this was the last application, safe to remove
+                const otherApplications = [
+                    ...this.stencilData.applications.filter(app => app !== this.selectedApplication)
+                ];
+                this.stencilData = {
+                    name: this.stencilData.name,
+                    version: this.stencilData.version,
+                    applications: otherApplications
+                };
+            }
+            this.selectedApplicationUI.classList.remove('selected');
+            this.selectedApplication = null;
+            this.selectedAppVersion = undefined;
+        }}
+              >Delete Application
+              <md-icon slot="icon">delete</md-icon>
+            </md-outlined-button>
           </div>
           ${this.renderIedsForUse()}
         </div>
@@ -15794,16 +15829,6 @@ class Stencil extends s$d {
     `;
     }
     renderCbSelectionTable() {
-        // const iedFromWithCBs = new Map<string, string[]>();
-        // this.iedMappingStencilData.forEach(cb => {
-        //   const existingCbs = iedFromWithCBs.get(cb.from);
-        //   if (existingCbs && !existingCbs.includes(cb.id)) {
-        //     existingCbs.push(cb.id);
-        //     iedFromWithCBs.set(cb.from, existingCbs);
-        //   } else {
-        //     iedFromWithCBs.set(cb.from, [cb.id]);
-        //   }
-        // });
         const toIedNames = this.iedMappingStencilData
             .map(cb => cb.to)
             .filter((item, i, ar) => ar.indexOf(item) === i)
@@ -16304,10 +16329,6 @@ Stencil.styles = i$a `
       width: 500px;
     }
 
-    #applications {
-      height: 100%;
-    }
-
     #stencilVersion {
       padding: 10px;
     }
@@ -16324,6 +16345,11 @@ Stencil.styles = i$a `
     #appMaker {
       display: flex;
       flex-direction: row;
+    }
+
+    #appSelection {
+      height: calc(100vh - 280px);
+      overflow-y: clip;
     }
 
     #headline,
@@ -16481,6 +16507,7 @@ Stencil.styles = i$a `
 
     #appContainer {
       padding-left: 20px;
+      overflow: clip;
     }
 
     #controlBlockMappings {
@@ -16490,6 +16517,30 @@ Stencil.styles = i$a `
 
     #supervisionInfo {
       font-size: 10px;
+    }
+
+    #applications,
+    #iedsAndFunctions {
+      height: calc(100vh - 410px);
+      overflow-y: scroll;
+    }
+
+    .scrollable {
+      scrollbar-width: auto;
+      scrollbar-color: var(--thumbBG) var(--scrollbarBG);
+    }
+
+    .scrollable::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .scrollable::-webkit-scrollbar-track {
+      background: var(--scrollbarBG);
+    }
+
+    .scrollable::-webkit-scrollbar-thumb {
+      background: var(--thumbBG);
+      border-radius: 6px;
     }
   `;
 __decorate([
@@ -16609,6 +16660,9 @@ __decorate([
 __decorate([
     e$d('#error-dialog')
 ], Stencil.prototype, "errorDialogUI", void 0);
+__decorate([
+    e$d('#applications > md-list-item.selected')
+], Stencil.prototype, "selectedApplicationUI", void 0);
 
 export { Stencil as default };
 //# sourceMappingURL=oscd-stencil.js.map
