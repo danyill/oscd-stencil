@@ -21,6 +21,7 @@ import '@material/web/list/list-item.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/menu/menu.js';
 import '@material/web/icon/icon.js';
+import '@material/web/switch/switch.js';
 
 import '@openenergytools/filterable-lists/dist/selection-list.js';
 import '@openenergytools/filterable-lists/dist/action-list.js';
@@ -44,6 +45,7 @@ import {
 } from '@openenergytools/scl-lib';
 import { newEditEvent } from '@openscd/open-scd-core';
 
+import { Checkbox } from '@material/web/checkbox/internal/checkbox.js';
 import {
   ControlBlockInfo,
   getMappingInfo
@@ -100,6 +102,11 @@ type StencilData = {
   applications: VersionedApplications[];
 };
 
+type cbSelectionRowData = {
+  fromIed: string;
+  cbs: string[] | undefined;
+};
+
 function newIedIdentity(iedName: string | undefined, id: string): string {
   return `${iedName}${id}`;
 }
@@ -148,6 +155,8 @@ export default class Stencil extends LitElement {
 
   @property() showSupervisions: boolean = true;
 
+  @property() allowEditColumns: boolean = false;
+
   // items: SelectItem[] = [];
 
   @query('mwc-tab-bar') tabBarUI!: TabBar;
@@ -183,6 +192,25 @@ export default class Stencil extends LitElement {
   @query('#menuApplicationsButton') menuAppButtonUI!: MdIconButton;
 
   @query('#menuApplications') menuAppUI!: MdMenu;
+
+  @query('#cbMappings') cbMappingsTableUI: HTMLTableElement | undefined;
+
+  @query('#cbMappings #tableUserMappingSelection') tableUserMappingSelectionUI:
+    | HTMLElement
+    | undefined;
+
+  @queryAll('#cbMappings > thead > th > md-checkbox.colselect.iedname')
+  tableUserMappingSelectionToIedsUI: HTMLElement[] | undefined;
+
+  @queryAll(
+    '#tableUserMappingSelection > tr > th.iedname > md-checkbox.rowselect.iedname'
+  )
+  tableUserMappingSelectionFromIedsUI: HTMLElement[] | undefined;
+
+  @queryAll(
+    '#tableUserMappingSelection > tr > th.cbname > md-checkbox.rowselect.iedname.cbname'
+  )
+  tableUserMappingSelectionFromCbsUI: HTMLElement[] | undefined;
 
   @queryAll('#function > md-outlined-text-field')
   functionIedNamesUI!: TextField[];
@@ -1088,12 +1116,90 @@ export default class Stencil extends LitElement {
     `;
   }
 
-  renderCbSelectionTable(): TemplateResult {
-    const toIedNames = this.iedMappingStencilData
-      .map(cb => cb.to)
-      .filter((item, i, ar) => ar.indexOf(item) === i)
-      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  renderRowCbUsed(
+    cbName: string,
+    row: cbSelectionRowData,
+    toIedNames: string[]
+  ) {
+    return html`${toIedNames.map(toIed => {
+      const mappedCb = this.iedMappingStencilData.find(
+        cb => cb.id === cbName && cb.from === row.fromIed && cb.to === toIed
+      );
+      return html`<td
+        class="${mappedCb ? 'mapcell' : ''} ${row.fromIed === toIed
+          ? 'diagonal'
+          : ''}"
+      >
+        ${mappedCb && this.templateCreationStage < 2
+          ? html`<md-checkbox
+                class="cb ${mappedCb && mappedCb.type === 'SampledValueControl'
+                  ? 'sv'
+                  : ''}"
+                data-fromIed="${row.fromIed}"
+                data-fromCb="${cbName}"
+                data-toIed="${toIed}"
+                touch-target="wrapper"
+                ?checked=${true}
+                @change=${(event: Event) => {
+                  // eslint-disable-next-line prefer-destructuring
+                  const target = event.target as MdCheckbox;
 
+                  if (
+                    // we use true to remove because the UI
+                    // update has not yet happened
+                    target.checked === true
+                  ) {
+                    this.createCBsToRemove = this.createCBsToRemove.filter(
+                      cb =>
+                        cb.id === cbName &&
+                        cb.from === row.fromIed &&
+                        cb.to === toIed
+                    );
+                  } else if (target.checked === false) {
+                    this.createCBsToRemove.push(
+                      {
+                        id: cbName,
+                        from: row.fromIed,
+                        to: toIed!
+                      }!
+                    );
+                  }
+
+                  this.updateDependentCheckboxes(
+                    'map',
+                    toIed,
+                    row.fromIed,
+                    cbName
+                  );
+
+                  // console.log(this.createCBsToRemove);
+                }}
+              ></md-checkbox>
+              ${this.showSupervisions
+                ? html`<p id="supervisionInfo">
+                    ${mappedCb.supervision === 'None'
+                      ? 'None'
+                      : mappedCb.supervision.substring(2)}
+                  </p>`
+                : nothing}`
+          : nothing}
+        ${mappedCb &&
+        !this.createCBsToRemove.find(
+          cb => cb.id === cbName && cb.from === row.fromIed && cb.to === toIed!
+        ) &&
+        this.templateCreationStage >= 2
+          ? html`<md-icon
+              class="cb ${mappedCb && mappedCb.type === 'SampledValueControl'
+                ? 'sv'
+                : ''}"
+              >check</md-icon
+            >`
+          : nothing}
+      </td>`;
+    })}`;
+  }
+
+  renderCbSelectionTableRows(toIedNames: string[]): TemplateResult {
     const rowIedNames = this.iedMappingStencilData
       .map(cb => cb.from)
       .filter((item, i, ar) => ar.indexOf(item) === i)
@@ -1110,165 +1216,211 @@ export default class Stencil extends LitElement {
       ]);
     });
 
-    const rowInfo = rowIedNames.flatMap(iedName => ({
+    const rowInfo: cbSelectionRowData[] = rowIedNames.flatMap(iedName => ({
       fromIed: iedName,
       cbs: iedFromWithCBs.get(iedName)
     }));
 
+    return html`${rowInfo.map(
+      row =>
+        html`<tr>
+            <th scope="row" class="iedname iednamebg removerightborder">
+              ${row.fromIed}
+            </th>
+            <th class="iedname iednamebg removeleftborder">
+              ${this.allowEditColumns
+                ? html`<md-checkbox
+                    class="rowselect iedname"
+                    data-fromIed="${row.fromIed}"
+                    touch-target="wrapper"
+                    ?checked=${true}
+                    @change=${(event: { target: MdCheckbox }) => {
+                      this.tableUserMappingSelectionUI
+                        ?.querySelectorAll(
+                          `td.mapcell > md-checkbox[data-fromied="${row.fromIed}"]`
+                        )
+                        .forEach(
+                          // eslint-disable-next-line no-return-assign
+                          checkBox =>
+                            // eslint-disable-next-line no-param-reassign
+                            ((checkBox as MdCheckbox).checked =
+                              event.target.checked)
+                        );
+                    }}
+                  ></md-checkbox>`
+                : nothing}
+            </th>
+            <td class="iednamebg" colspan="${toIedNames.length}"></td>
+          </tr>
+          ${row
+            .cbs!.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+            .map(
+              cbName =>
+                html`<tr>
+                  <th
+                    scope="row"
+                    class="cbname removerightborder"
+                    data-fromIed="${row.fromIed}"
+                    data-fromCb="${cbName}"
+                  >
+                    ${cbName.substring(2)}
+                  </th>
+                  <th class="removeleftborder fromcb">
+                    ${this.allowEditColumns
+                      ? html`<md-checkbox
+                          class="rowselect iedname cbname"
+                          data-fromIed="${row.fromIed}"
+                          data-fromCb="${cbName}"
+                          touch-target="wrapper"
+                          ?checked=${true}
+                          @change=${(event: { target: MdCheckbox }) => {
+                            this.tableUserMappingSelectionUI
+                              ?.querySelectorAll(
+                                `td.mapcell > md-checkbox[data-fromied="${row.fromIed}"][data-fromcb="${cbName}"]`
+                              )
+                              .forEach(
+                                // eslint-disable-next-line no-return-assign
+                                checkBox =>
+                                  // eslint-disable-next-line no-param-reassign
+                                  ((checkBox as MdCheckbox).checked =
+                                    event.target.checked)
+                              );
+                          }}
+                        ></md-checkbox>`
+                      : nothing}
+                  </th>
+                  ${this.renderRowCbUsed(cbName, row, toIedNames)}
+                </tr>`
+            )}`
+    )}`;
+  }
+
+  updateDependentCheckboxes(
+    source: 'to' | 'cb' | 'from' | 'map',
+    toIedName?: string,
+    fromIedName?: string,
+    cbName?: string
+  ): void {
+    const updateCheckbox = (checkbox: Checkbox, selector: string) => {
+      if (checkbox) {
+        const rowIedsChecked = Array.from(
+          this.tableUserMappingSelectionUI!.querySelectorAll(selector)
+        ).filter(cb => (cb as Checkbox).checked).length;
+
+        const rowIedsTotal =
+          this.tableUserMappingSelectionUI?.querySelectorAll(selector).length;
+
+        // eslint-disable-next-line no-param-reassign
+        checkbox.checked = rowIedsTotal === rowIedsChecked;
+        // eslint-disable-next-line no-param-reassign
+        checkbox.indeterminate =
+          rowIedsTotal !== rowIedsChecked && rowIedsChecked !== 0;
+      }
+    };
+
+    if (source !== 'to') {
+      const checkbox = this.cbMappingsTableUI?.querySelector(
+        `:scope > thead > tr > th > md-checkbox.colselect.iedname[data-toied="${toIedName}"]`
+      ) as Checkbox;
+      const selector = `td.mapcell > md-checkbox[data-toied="${toIedName}"]`;
+      updateCheckbox(checkbox, selector);
+    }
+
+    if (source !== 'from') {
+      const checkbox = this.cbMappingsTableUI?.querySelector(
+        `:scope > tbody > tr > th.iedname > md-checkbox.rowselect.iedname[data-fromied="${fromIedName}"]`
+      ) as Checkbox;
+      const selector = `td.mapcell > md-checkbox[data-fromied="${fromIedName}"]`;
+      updateCheckbox(checkbox, selector);
+    }
+
+    if (source !== 'cb') {
+      const checkbox = this.cbMappingsTableUI?.querySelector(
+        `:scope > tbody > tr > th.fromcb > md-checkbox.rowselect.cbname[data-fromied="${fromIedName}"][data-fromcb="${cbName}"]`
+      ) as Checkbox;
+      const selector = `td.mapcell > md-checkbox[data-fromied="${fromIedName}"][data-fromcb="${cbName}"]`;
+      updateCheckbox(checkbox, selector);
+    }
+  }
+
+  renderCbSelectionTable(): TemplateResult {
+    const toIedNames = this.iedMappingStencilData
+      .map(cb => cb.to)
+      .filter((item, i, ar) => ar.indexOf(item) === i)
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+    return html`<table id="cbMappings">
+      <caption>
+        Control Block Mappings
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col" colspan="2"></th>
+          <th scope="col" colspan="${toIedNames.length}">To</th>
+        </tr>
+        <tr>
+          <th scope="col" colspan="2">From</th>
+          ${toIedNames.map(
+            iedName =>
+              html`<th class="stay" scope="col">
+                ${iedName}
+                ${this.allowEditColumns
+                  ? html`<md-checkbox
+                      class="colselect iedname"
+                      data-toIed="${iedName}"
+                      touch-target="wrapper"
+                      checked
+                      @change=${(event: { target: MdCheckbox }) => {
+                        this.tableUserMappingSelectionUI
+                          ?.querySelectorAll(
+                            `td.mapcell > md-checkbox[data-toied="${iedName}"]`
+                          )
+                          .forEach(
+                            // eslint-disable-next-line no-return-assign
+                            checkBox =>
+                              // eslint-disable-next-line no-param-reassign
+                              ((checkBox as MdCheckbox).checked =
+                                event.target.checked)
+                          );
+                      }}
+                      }
+                    ></md-checkbox>`
+                  : nothing}
+              </th>`
+          )}
+        </tr>
+      </thead>
+      <tbody id="tableUserMappingSelection">
+        ${this.renderCbSelectionTableRows(toIedNames)}
+      </tbody>
+    </table>`;
+  }
+
+  renderCbSelection(): TemplateResult {
     return html`<h1>Select Template Control Blocks</h1>
-      <div class="columngroup">
+      <div class="group">
         <label
-          ><md-checkbox
+          ><md-switch
             touch-target="wrapper"
-            ?checked=${true}
+            ?selected=${true}
             @change=${() => {
               this.showSupervisions = !this.showSupervisions;
             }}
-          ></md-checkbox
+          ></md-switch
           >Show Supervisions</label
         >
-        <table>
-          <caption>
-            Control Block Mappings
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col"></th>
-              <th scope="col" colspan="${toIedNames.length}">To</th>
-            </tr>
-            <tr>
-              <th scope="col">From</th>
-              ${toIedNames.map(
-                iedName => html`<th class="stay" scope="col">${iedName}</th> `
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            ${rowInfo.map(
-              row =>
-                html`<tr>
-                    <th scope="row" class="iedname iednamebg">
-                      ${row.fromIed}
-                    </th>
-                    <th
-                      scope="row"
-                      class="iednamebg"
-                      colspan="${toIedNames.length}"
-                    ></th>
-                  </tr>
-                  ${row
-                    .cbs!.sort((a, b) =>
-                      a.toLowerCase().localeCompare(b.toLowerCase())
-                    )
-                    .map(
-                      cbName =>
-                        html`<tr>
-                          <th
-                            scope="row"
-                            class="cbname"
-                            data-fromIed="${row.fromIed}"
-                            data-fromCb="${cbName}"
-                          >
-                            ${cbName.substring(2)}
-                          </th>
-                          ${toIedNames.map(toIed => {
-                            const mappedCb = this.iedMappingStencilData.find(
-                              cb =>
-                                cb.id === cbName &&
-                                cb.from === row.fromIed &&
-                                cb.to === toIed
-                            );
-                            return html`<td
-                              class="${mappedCb
-                                ? 'mapcell'
-                                : ''} ${row.fromIed === toIed
-                                ? 'diagonal'
-                                : ''}"
-                            >
-                              ${mappedCb && this.templateCreationStage < 2
-                                ? html`<md-checkbox
-                                      class="cb ${mappedCb &&
-                                      mappedCb.type === 'SampledValueControl'
-                                        ? 'sv'
-                                        : ''}"
-                                      data-fromIed="${row.fromIed}"
-                                      data-fromCb="${cbName}"
-                                      data-toIed="${toIed}"
-                                      touch-target="wrapper"
-                                      ?checked=${true}
-                                      @change=${(event: Event) => {
-                                        // eslint-disable-next-line prefer-destructuring
-                                        const target =
-                                          event.target as MdCheckbox;
-                                        // const { fromcb, fromied, toied } =
-                                        //   target.dataset!;
-
-                                        // const cbObject: ControlBlockTableMapping = {
-                                        //   id: fromcb!,
-                                        //   from: fromied!,
-                                        //   to: toied!
-                                        // };
-
-                                        if (
-                                          // we use true to remove because the UI
-                                          // update has not yet happened
-                                          target.checked === true
-                                        ) {
-                                          this.createCBsToRemove =
-                                            this.createCBsToRemove.filter(
-                                              cb =>
-                                                cb.id === cbName &&
-                                                cb.from === row.fromIed &&
-                                                cb.to === toIed
-                                              // cb.id === cbObject.id &&
-                                              // cb.from === cbObject.from &&
-                                              // cb.to === cbObject.to
-                                            );
-                                        } else if (target.checked === false) {
-                                          this.createCBsToRemove.push(
-                                            {
-                                              id: cbName,
-                                              from: row.fromIed,
-                                              to: toIed!
-                                            }!
-                                          );
-                                        }
-                                        // console.log(this.createCBsToRemove);
-                                      }}
-                                    ></md-checkbox>
-
-                                    ${this.showSupervisions
-                                      ? html`<p id="supervisionInfo">
-                                          ${mappedCb.supervision === 'None'
-                                            ? 'None'
-                                            : mappedCb.supervision.substring(2)}
-                                        </p>`
-                                      : nothing}`
-                                : nothing}
-                              ${mappedCb &&
-                              !this.createCBsToRemove.find(
-                                cb =>
-                                  cb.id === cbName &&
-                                  cb.from === row.fromIed &&
-                                  cb.to === toIed!
-                              ) &&
-                              this.templateCreationStage >= 2
-                                ? html`<md-icon
-                                    class="cb ${mappedCb &&
-                                    mappedCb.type === 'SampledValueControl'
-                                      ? 'sv'
-                                      : ''}"
-                                    >check</md-icon
-                                  >`
-                                : nothing}
-                            </td>`;
-                          })}
-                        </tr>`
-                    )}`
-            )}
-          </tbody>
-        </table>
+        <label
+          ><md-switch
+            touch-target="wrapper"
+            ?selected=${false}
+            @change=${() => {
+              this.allowEditColumns = !this.allowEditColumns;
+            }}
+          ></md-switch
+          >Allow From/To colum and row selection</label
+        >
       </div>
+      <div class="columngroup">${this.renderCbSelectionTable()}</div>
       <md-filled-button
         class="button"
         ?disabled=${this.iedMappingStencilData.length === 0}
@@ -1277,7 +1429,6 @@ export default class Stencil extends LitElement {
           this.uniqueIeds = [];
 
           // remove unused control blocks
-          // TODO: Does this suggest my data structure is bad?
           this.iedMappingStencilData = this.iedMappingStencilData.filter(
             cbInf =>
               !this.createCBsToRemove.find(
@@ -1297,7 +1448,7 @@ export default class Stencil extends LitElement {
         }}
         >Name IEDs for Functions
         <md-icon slot="icon">draw_collage</md-icon>
-      </md-filled-button> `;
+      </md-filled-button>`;
   }
 
   renderIedsToFunctionNaming(): TemplateResult {
@@ -1441,9 +1592,7 @@ export default class Stencil extends LitElement {
           <md-icon slot="icon">developer_board</md-icon>
         </md-filled-button>
       </div>
-      ${this.templateCreationStage >= 1
-        ? this.renderCbSelectionTable()
-        : nothing}
+      ${this.templateCreationStage >= 1 ? this.renderCbSelection() : nothing}
       ${this.templateCreationStage >= 2
         ? this.renderIedsToFunctionNaming()
         : nothing}
@@ -1807,6 +1956,23 @@ export default class Stencil extends LitElement {
 
     .cb {
       color: lightseagreen;
+    }
+
+    .rowselect,
+    .colselect {
+      margin: 0px;
+    }
+
+    .removeleftborder {
+      border-left: none;
+    }
+
+    .removerightborder {
+      border-right: none;
+    }
+
+    md-switch {
+      padding: 15px;
     }
 
     #menuUse {
