@@ -59,7 +59,7 @@ import { getIedDescription } from './getIedDescription.js';
 // ).then(res => res.json());
 
 const defaultStencil = {
-  name: 'Noname',
+  name: 'Please name your Stencil',
   version: '0.0.1',
   applications: []
 };
@@ -106,6 +106,8 @@ type cbSelectionRowData = {
   fromIed: string;
   cbs: string[] | undefined;
 };
+
+type TableData = { toIedNames: string[]; rowInfo: cbSelectionRowData[] };
 
 function newIedIdentity(iedName: string | undefined, id: string): string {
   return `${iedName}${id}`;
@@ -156,6 +158,8 @@ export default class Stencil extends LitElement {
   @property() showSupervisions: boolean = true;
 
   @property() allowEditColumns: boolean = false;
+
+  @property() allowAppCreationToggles: boolean = true;
 
   // items: SelectItem[] = [];
 
@@ -211,6 +215,9 @@ export default class Stencil extends LitElement {
     '#tableUserMappingSelection > tr > th.cbname > md-checkbox.rowselect.iedname.cbname'
   )
   tableUserMappingSelectionFromCbsUI: HTMLElement[] | undefined;
+
+  @queryAll('#tableUserMappingSelection td.mapcell > md-checkbox.cb')
+  tableUserMappingMappedCheckboxesUI: HTMLElement[] | undefined;
 
   @queryAll('#function > md-outlined-text-field')
   functionIedNamesUI!: TextField[];
@@ -579,6 +586,7 @@ export default class Stencil extends LitElement {
     this.iedMappingStencilData = [];
     this.uniqueIeds = [];
     this.createCBsToRemove = [];
+    this.allowAppCreationToggles = true;
   }
 
   resetApplyStencil(): void {
@@ -615,6 +623,11 @@ export default class Stencil extends LitElement {
       prop => prop === 'stencilData'
     );
     if (storageUpdateRequired) this.storeSettings();
+
+    // reset application if switching to create tab
+    if (Array.from(changedProperties.keys()).includes('tabIndex')) {
+      this.resetCreateApplication();
+    }
   }
 
   renderFunctionIedSelector(): TemplateResult {
@@ -1141,31 +1154,8 @@ export default class Stencil extends LitElement {
                 data-toIed="${toIed}"
                 touch-target="wrapper"
                 ?checked=${true}
-                @change=${(event: Event) => {
+                @change=${() => {
                   // eslint-disable-next-line prefer-destructuring
-                  const target = event.target as MdCheckbox;
-
-                  if (
-                    // we use true to remove because the UI
-                    // update has not yet happened
-                    target.checked === true
-                  ) {
-                    this.createCBsToRemove = this.createCBsToRemove.filter(
-                      cb =>
-                        cb.id === cbName &&
-                        cb.from === row.fromIed &&
-                        cb.to === toIed
-                    );
-                  } else if (target.checked === false) {
-                    this.createCBsToRemove.push(
-                      {
-                        id: cbName,
-                        from: row.fromIed,
-                        to: toIed!
-                      }!
-                    );
-                  }
-
                   this.updateDependentCheckboxes(
                     'map',
                     toIedNames,
@@ -1173,8 +1163,6 @@ export default class Stencil extends LitElement {
                     toIed,
                     row.fromIed
                   );
-
-                  // console.log(this.createCBsToRemove);
                 }}
               ></md-checkbox>
               ${this.showSupervisions
@@ -1225,10 +1213,11 @@ export default class Stencil extends LitElement {
                         )
                         .forEach(
                           // eslint-disable-next-line no-return-assign
-                          checkBox =>
+                          checkbox => {
                             // eslint-disable-next-line no-param-reassign
-                            ((checkBox as MdCheckbox).checked =
-                              event.target.checked)
+                            (<MdCheckbox>checkbox).checked =
+                              event.target.checked;
+                          }
                         );
 
                       this.updateDependentCheckboxes(
@@ -1272,10 +1261,11 @@ export default class Stencil extends LitElement {
                               )
                               .forEach(
                                 // eslint-disable-next-line no-return-assign
-                                checkBox =>
+                                checkbox => {
                                   // eslint-disable-next-line no-param-reassign
-                                  ((checkBox as MdCheckbox).checked =
-                                    event.target.checked)
+                                  (checkbox as MdCheckbox).checked =
+                                    event.target.checked;
+                                }
                               );
 
                             this.updateDependentCheckboxes(
@@ -1396,7 +1386,7 @@ export default class Stencil extends LitElement {
     }
   }
 
-  renderCbSelectionTable(): TemplateResult {
+  getTableData(): TableData {
     const toIedNames = this.iedMappingStencilData
       .map(cb => cb.to)
       .filter((item, i, ar) => ar.indexOf(item) === i)
@@ -1422,6 +1412,12 @@ export default class Stencil extends LitElement {
       fromIed: iedName,
       cbs: iedFromWithCBs.get(iedName)
     }));
+
+    return { toIedNames, rowInfo };
+  }
+
+  renderCbSelectionTable(): TemplateResult {
+    const { toIedNames, rowInfo } = this.getTableData();
 
     return html`<table id="cbMappings">
       <caption>
@@ -1483,6 +1479,7 @@ export default class Stencil extends LitElement {
           ><md-switch
             touch-target="wrapper"
             ?selected=${true}
+            ?disabled=${!this.allowAppCreationToggles}
             @change=${() => {
               this.showSupervisions = !this.showSupervisions;
             }}
@@ -1493,11 +1490,14 @@ export default class Stencil extends LitElement {
           ><md-switch
             touch-target="wrapper"
             ?selected=${false}
+            ?disabled=${!this.allowAppCreationToggles}
             @change=${() => {
               this.allowEditColumns = !this.allowEditColumns;
+              const { toIedNames, rowInfo } = this.getTableData();
+              this.updateDependentCheckboxes('map', toIedNames, rowInfo);
             }}
           ></md-switch
-          >Allow From/To colum and row selection</label
+          >Allow From/To Selection</label
         >
       </div>
       <div class="columngroup">${this.renderCbSelectionTable()}</div>
@@ -1505,6 +1505,23 @@ export default class Stencil extends LitElement {
         class="button"
         ?disabled=${this.iedMappingStencilData.length === 0}
         @click=${() => {
+          Array.from(this.tableUserMappingMappedCheckboxesUI!).forEach(
+            checkbox => {
+              const { fromied, fromcb, toied } = (<MdCheckbox>checkbox).dataset;
+              if ((<MdCheckbox>checkbox).checked === false) {
+                this.createCBsToRemove.push({
+                  id: fromcb!,
+                  from: fromied!,
+                  to: toied!
+                });
+              }
+            }
+          );
+
+          // No longer acceptable to edit columns at this stage of the process
+          this.allowEditColumns = false;
+          this.allowAppCreationToggles = false;
+
           this.templateCreationStage = 2;
           this.uniqueIeds = [];
 
