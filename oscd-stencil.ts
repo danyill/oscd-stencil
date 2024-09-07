@@ -821,93 +821,22 @@ export default class Stencil extends LitElement {
     return html`<div id="controlBlockMappings" class="columngroup">
       <h2>Application Details</h2>
       <label
-        ><md-checkbox
+        ><md-switch
           touch-target="wrapper"
-          ?checked=${true}
+          ?selected=${true}
+          ?disabled=${!this.allowAppCreationToggles}
           @change=${() => {
             this.showSupervisions = !this.showSupervisions;
           }}
-        ></md-checkbox
+        ></md-switch
         >Show Supervisions</label
       >
-      <table>
-        <caption>
-          Control Block Mappings
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col"></th>
-            <th scope="col" colspan="${toIedNames.length}">To</th>
-          </tr>
-          <tr>
-            <th scope="col">From</th>
-            ${toIedNames.map(
-              iedName => html`<th class="stay" scope="col">${iedName}</th> `
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          ${rowInfo.map(
-            row =>
-              html`<tr>
-                  <th scope="row" class="iedname iednamebg">${row.fromIed}</th>
-                  <th
-                    scope="row"
-                    class="iednamebg"
-                    colspan="${toIedNames.length}"
-                  ></th>
-                </tr>
-                ${row
-                  .cbs!.sort((a, b) =>
-                    a.toLowerCase().localeCompare(b.toLowerCase())
-                  )
-                  .map(
-                    cbName =>
-                      html`<tr>
-                        <th
-                          scope="row"
-                          class="cbname"
-                          data-fromIed="${row.fromIed}"
-                          data-fromCb="${cbName}"
-                        >
-                          ${cbName.substring(2)}
-                        </th>
-                        ${toIedNames.map(toIed => {
-                          const mappedCb =
-                            this.selectedAppVersion!.ControlBlocks.find(
-                              cb =>
-                                cb.id === cbName &&
-                                cb.from === row.fromIed &&
-                                cb.to === toIed
-                            );
-                          return html`<td
-                            class="${mappedCb
-                              ? 'mapcell'
-                              : ''} ${row.fromIed === toIed ? 'diagonal' : ''}"
-                          >
-                            ${mappedCb
-                              ? html`<md-icon
-                                    class="cb ${mappedCb &&
-                                    mappedCb.type === 'SampledValueControl'
-                                      ? 'sv'
-                                      : ''}"
-                                    >check</md-icon
-                                  >
-                                  ${this.showSupervisions
-                                    ? html`<p id="supervisionInfo">
-                                        ${mappedCb.supervision === 'None'
-                                          ? 'None'
-                                          : mappedCb.supervision.substring(2)}
-                                      </p>`
-                                    : nothing}`
-                              : nothing}
-                          </td>`;
-                        })}
-                      </tr>`
-                  )}`
-          )}
-        </tbody>
-      </table>
+      ${this.renderCbSelectionTable(
+        toIedNames,
+        rowInfo,
+        this.selectedAppVersion!.ControlBlocks,
+        true
+      )}
     </div>`;
   }
 
@@ -1114,7 +1043,6 @@ export default class Stencil extends LitElement {
           </md-outlined-button>
         </div>
       </div>
-
       ${this.renderStencilSelectionAndUse()}
       <input
         id="changeStencil"
@@ -1133,10 +1061,12 @@ export default class Stencil extends LitElement {
     cbName: string,
     row: cbSelectionRowData,
     toIedNames: string[],
-    rowInfo: cbSelectionRowData[]
+    rowInfo: cbSelectionRowData[],
+    mappingData: ControlBlockInfo[],
+    readOnly?: boolean
   ) {
     return html`${toIedNames.map(toIed => {
-      const mappedCb = this.iedMappingStencilData.find(
+      const mappedCb = mappingData.find(
         cb => cb.id === cbName && cb.from === row.fromIed && cb.to === toIed
       );
       return html`<td
@@ -1144,40 +1074,32 @@ export default class Stencil extends LitElement {
           ? 'diagonal'
           : ''}"
       >
-        ${mappedCb && this.templateCreationStage < 2
+        ${mappedCb && this.templateCreationStage < 2 && !readOnly
           ? html`<md-checkbox
-                class="cb ${mappedCb && mappedCb.type === 'SampledValueControl'
-                  ? 'sv'
-                  : ''}"
-                data-fromIed="${row.fromIed}"
-                data-fromCb="${cbName}"
-                data-toIed="${toIed}"
-                touch-target="wrapper"
-                ?checked=${true}
-                @change=${() => {
-                  // eslint-disable-next-line prefer-destructuring
-                  this.updateDependentCheckboxes(
-                    'map',
-                    toIedNames,
-                    rowInfo,
-                    toIed,
-                    row.fromIed
-                  );
-                }}
-              ></md-checkbox>
-              ${this.showSupervisions
-                ? html`<p id="supervisionInfo">
-                    ${mappedCb.supervision === 'None'
-                      ? 'None'
-                      : mappedCb.supervision.substring(2)}
-                  </p>`
-                : nothing}`
+              class="cb ${mappedCb && mappedCb.type === 'SampledValueControl'
+                ? 'sv'
+                : ''}"
+              data-fromIed="${row.fromIed}"
+              data-fromCb="${cbName}"
+              data-toIed="${toIed}"
+              touch-target="wrapper"
+              ?checked=${true}
+              @change=${() => {
+                this.updateDependentCheckboxes(
+                  'map',
+                  toIedNames,
+                  rowInfo,
+                  toIed,
+                  row.fromIed
+                );
+              }}
+            ></md-checkbox> `
           : nothing}
         ${mappedCb &&
         !this.createCBsToRemove.find(
           cb => cb.id === cbName && cb.from === row.fromIed && cb.to === toIed!
         ) &&
-        this.templateCreationStage >= 2
+        (this.templateCreationStage >= 2 || readOnly)
           ? html`<md-icon
               class="cb ${mappedCb && mappedCb.type === 'SampledValueControl'
                 ? 'sv'
@@ -1185,13 +1107,23 @@ export default class Stencil extends LitElement {
               >check</md-icon
             >`
           : nothing}
+        <!-- supervision -->
+        ${mappedCb && this.showSupervisions
+          ? html`<p id="supervisionInfo">
+              ${mappedCb.supervision === 'None'
+                ? 'None'
+                : mappedCb.supervision.substring(2)}
+            </p>`
+          : nothing}
       </td>`;
     })}`;
   }
 
   renderCbSelectionTableRows(
     toIedNames: string[],
-    rowInfo: cbSelectionRowData[]
+    rowInfo: cbSelectionRowData[],
+    mappingData: ControlBlockInfo[],
+    readOnly?: boolean
   ): TemplateResult {
     return html`${rowInfo.map(
       row =>
@@ -1211,14 +1143,10 @@ export default class Stencil extends LitElement {
                         ?.querySelectorAll(
                           `td.mapcell > md-checkbox[data-fromied="${row.fromIed}"]`
                         )
-                        .forEach(
-                          // eslint-disable-next-line no-return-assign
-                          checkbox => {
-                            // eslint-disable-next-line no-param-reassign
-                            (<MdCheckbox>checkbox).checked =
-                              event.target.checked;
-                          }
-                        );
+                        .forEach(checkbox => {
+                          // eslint-disable-next-line no-param-reassign
+                          (<MdCheckbox>checkbox).checked = event.target.checked;
+                        });
 
                       this.updateDependentCheckboxes(
                         'from',
@@ -1277,7 +1205,14 @@ export default class Stencil extends LitElement {
                         ></md-checkbox>`
                       : nothing}
                   </th>
-                  ${this.renderRowCbUsed(cbName, row, toIedNames, rowInfo)}
+                  ${this.renderRowCbUsed(
+                    cbName,
+                    row,
+                    toIedNames,
+                    rowInfo,
+                    mappingData,
+                    readOnly
+                  )}
                 </tr>`
             )}`
     )}`;
@@ -1416,9 +1351,12 @@ export default class Stencil extends LitElement {
     return { toIedNames, rowInfo };
   }
 
-  renderCbSelectionTable(): TemplateResult {
-    const { toIedNames, rowInfo } = this.getTableData();
-
+  renderCbSelectionTable(
+    toIedNames: string[],
+    rowInfo: cbSelectionRowData[],
+    mappingData: ControlBlockInfo[],
+    readOnly?: boolean
+  ): TemplateResult {
     return html`<table id="cbMappings">
       <caption>
         Control Block Mappings
@@ -1467,12 +1405,19 @@ export default class Stencil extends LitElement {
         </tr>
       </thead>
       <tbody id="tableUserMappingSelection">
-        ${this.renderCbSelectionTableRows(toIedNames, rowInfo)}
+        ${this.renderCbSelectionTableRows(
+          toIedNames,
+          rowInfo,
+          mappingData,
+          readOnly
+        )}
       </tbody>
     </table>`;
   }
 
   renderCbSelection(): TemplateResult {
+    const { toIedNames, rowInfo } = this.getTableData();
+
     return html`<h1>Select Template Control Blocks</h1>
       <div class="group">
         <label
@@ -1494,13 +1439,20 @@ export default class Stencil extends LitElement {
             @change=${() => {
               this.allowEditColumns = !this.allowEditColumns;
               const { toIedNames, rowInfo } = this.getTableData();
-              this.updateDependentCheckboxes('map', toIedNames, rowInfo);
+              if (this.allowEditColumns)
+                this.updateDependentCheckboxes('map', toIedNames, rowInfo);
             }}
           ></md-switch
           >Allow From/To Selection</label
         >
       </div>
-      <div class="columngroup">${this.renderCbSelectionTable()}</div>
+      <div class="columngroup">
+        ${this.renderCbSelectionTable(
+          toIedNames,
+          rowInfo,
+          this.iedMappingStencilData
+        )}
+      </div>
       <md-filled-button
         class="button"
         ?disabled=${this.iedMappingStencilData.length === 0}
@@ -1604,6 +1556,7 @@ export default class Stencil extends LitElement {
   renderCreate(): TemplateResult {
     if (!this.doc)
       return html`<h1>Please open a file to use this functionality</h1>`;
+
     return html`
       <h1>Enter Stencil Data</h1>
       <div class="group appinf">
@@ -1803,6 +1756,13 @@ export default class Stencil extends LitElement {
           detail: { index: number };
         }) => {
           this.tabIndex = index;
+
+          if (this.tabIndex === 0) {
+            this.showSupervisions = true;
+            this.allowEditColumns = false;
+          } else if (this.tabIndex === 1) {
+            this.showSupervisions = true;
+          }
         }}
       >
         <mwc-tab label="Use" icon="play_circle" default></mwc-tab>
