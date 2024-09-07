@@ -1119,7 +1119,8 @@ export default class Stencil extends LitElement {
   renderRowCbUsed(
     cbName: string,
     row: cbSelectionRowData,
-    toIedNames: string[]
+    toIedNames: string[],
+    rowInfo: cbSelectionRowData[]
   ) {
     return html`${toIedNames.map(toIed => {
       const mappedCb = this.iedMappingStencilData.find(
@@ -1167,9 +1168,10 @@ export default class Stencil extends LitElement {
 
                   this.updateDependentCheckboxes(
                     'map',
+                    toIedNames,
+                    rowInfo,
                     toIed,
-                    row.fromIed,
-                    cbName
+                    row.fromIed
                   );
 
                   // console.log(this.createCBsToRemove);
@@ -1199,28 +1201,10 @@ export default class Stencil extends LitElement {
     })}`;
   }
 
-  renderCbSelectionTableRows(toIedNames: string[]): TemplateResult {
-    const rowIedNames = this.iedMappingStencilData
-      .map(cb => cb.from)
-      .filter((item, i, ar) => ar.indexOf(item) === i)
-      .sort();
-
-    const iedFromWithCBs = new Map<string, string[]>();
-    rowIedNames.forEach(ied => {
-      iedFromWithCBs.set(ied, [
-        ...new Set(
-          this.iedMappingStencilData
-            .filter(cb => cb.from === ied)
-            .map(cb => cb.id)
-        )
-      ]);
-    });
-
-    const rowInfo: cbSelectionRowData[] = rowIedNames.flatMap(iedName => ({
-      fromIed: iedName,
-      cbs: iedFromWithCBs.get(iedName)
-    }));
-
+  renderCbSelectionTableRows(
+    toIedNames: string[],
+    rowInfo: cbSelectionRowData[]
+  ): TemplateResult {
     return html`${rowInfo.map(
       row =>
         html`<tr>
@@ -1246,6 +1230,14 @@ export default class Stencil extends LitElement {
                             ((checkBox as MdCheckbox).checked =
                               event.target.checked)
                         );
+
+                      this.updateDependentCheckboxes(
+                        'from',
+                        toIedNames,
+                        rowInfo,
+                        undefined,
+                        row.fromIed
+                      );
                     }}
                   ></md-checkbox>`
                 : nothing}
@@ -1285,11 +1277,17 @@ export default class Stencil extends LitElement {
                                   ((checkBox as MdCheckbox).checked =
                                     event.target.checked)
                               );
+
+                            this.updateDependentCheckboxes(
+                              'cb',
+                              toIedNames,
+                              rowInfo
+                            );
                           }}
                         ></md-checkbox>`
                       : nothing}
                   </th>
-                  ${this.renderRowCbUsed(cbName, row, toIedNames)}
+                  ${this.renderRowCbUsed(cbName, row, toIedNames, rowInfo)}
                 </tr>`
             )}`
     )}`;
@@ -1297,6 +1295,8 @@ export default class Stencil extends LitElement {
 
   updateDependentCheckboxes(
     source: 'to' | 'cb' | 'from' | 'map',
+    toIedNames: string[],
+    fromIedNamesAndCBs: cbSelectionRowData[],
     toIedName?: string,
     fromIedName?: string,
     cbName?: string
@@ -1324,6 +1324,18 @@ export default class Stencil extends LitElement {
       ) as Checkbox;
       const selector = `td.mapcell > md-checkbox[data-toied="${toIedName}"]`;
       updateCheckbox(checkbox, selector);
+
+      // not a specific IED, update all
+      if (!toIedName) {
+        toIedNames.forEach(iedName => {
+          const checkbox = this.cbMappingsTableUI?.querySelector(
+            `:scope > thead > tr > th > md-checkbox.colselect.iedname[data-toied="${iedName}"]`
+          ) as Checkbox;
+          const selector = `td.mapcell > md-checkbox[data-toied="${iedName}"]`;
+          updateCheckbox(checkbox, selector);
+          console.log(`Updated a to ied ${iedName}`);
+        });
+      }
     }
 
     if (source !== 'from') {
@@ -1332,6 +1344,18 @@ export default class Stencil extends LitElement {
       ) as Checkbox;
       const selector = `td.mapcell > md-checkbox[data-fromied="${fromIedName}"]`;
       updateCheckbox(checkbox, selector);
+
+      // update for all from ieds
+      if (!fromIedName) {
+        fromIedNamesAndCBs.forEach(ied => {
+          const checkbox = this.cbMappingsTableUI?.querySelector(
+            `:scope > tbody > tr > th.iedname > md-checkbox.rowselect.iedname[data-fromied="${ied.fromIed}"]`
+          ) as Checkbox;
+          const selector = `td.mapcell > md-checkbox[data-fromied="${ied.fromIed}"]`;
+          updateCheckbox(checkbox, selector);
+          console.log(`Updated a from ied ${ied.fromIed}`);
+        });
+      }
     }
 
     if (source !== 'cb') {
@@ -1340,6 +1364,35 @@ export default class Stencil extends LitElement {
       ) as Checkbox;
       const selector = `td.mapcell > md-checkbox[data-fromied="${fromIedName}"][data-fromcb="${cbName}"]`;
       updateCheckbox(checkbox, selector);
+
+      // update for all cbs
+      if (!fromIedName && !cbName) {
+        fromIedNamesAndCBs.forEach(ied => {
+          ied.cbs?.forEach(cb => {
+            const checkbox = this.cbMappingsTableUI?.querySelector(
+              `:scope > tbody > tr > th.fromcb > md-checkbox.rowselect.cbname[data-fromied="${ied.fromIed}"][data-fromcb="${cb}"]`
+            ) as Checkbox;
+            const selector = `td.mapcell > md-checkbox[data-fromied="${ied.fromIed}"][data-fromcb="${cb}"]`;
+            updateCheckbox(checkbox, selector);
+            console.log(`Updated a cb ${ied.fromIed} ${cb}`);
+          });
+        });
+      }
+
+      // update for all cbs
+      if (fromIedName && !cbName) {
+        const fromData = fromIedNamesAndCBs.find(
+          data => data.fromIed === fromIedName
+        );
+        fromData?.cbs?.forEach(cb => {
+          const checkbox = this.cbMappingsTableUI?.querySelector(
+            `:scope > tbody > tr > th.fromcb > md-checkbox.rowselect.cbname[data-fromied="${fromIedName}"][data-fromcb="${cb}"]`
+          ) as Checkbox;
+          const selector = `td.mapcell > md-checkbox[data-fromied="${fromIedName}"][data-fromcb="${cb}"]`;
+          updateCheckbox(checkbox, selector);
+          console.log(`Updated a cb ${fromIedName} ${cb}`);
+        });
+      }
     }
   }
 
@@ -1348,6 +1401,27 @@ export default class Stencil extends LitElement {
       .map(cb => cb.to)
       .filter((item, i, ar) => ar.indexOf(item) === i)
       .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+    const rowIedNames = this.iedMappingStencilData
+      .map(cb => cb.from)
+      .filter((item, i, ar) => ar.indexOf(item) === i)
+      .sort();
+
+    const iedFromWithCBs = new Map<string, string[]>();
+    rowIedNames.forEach(ied => {
+      iedFromWithCBs.set(ied, [
+        ...new Set(
+          this.iedMappingStencilData
+            .filter(cb => cb.from === ied)
+            .map(cb => cb.id)
+        )
+      ]);
+    });
+
+    const rowInfo: cbSelectionRowData[] = rowIedNames.flatMap(iedName => ({
+      fromIed: iedName,
+      cbs: iedFromWithCBs.get(iedName)
+    }));
 
     return html`<table id="cbMappings">
       <caption>
@@ -1382,6 +1456,12 @@ export default class Stencil extends LitElement {
                               ((checkBox as MdCheckbox).checked =
                                 event.target.checked)
                           );
+
+                        this.updateDependentCheckboxes(
+                          'to',
+                          toIedNames,
+                          rowInfo
+                        );
                       }}
                       }
                     ></md-checkbox>`
@@ -1391,7 +1471,7 @@ export default class Stencil extends LitElement {
         </tr>
       </thead>
       <tbody id="tableUserMappingSelection">
-        ${this.renderCbSelectionTableRows(toIedNames)}
+        ${this.renderCbSelectionTableRows(toIedNames, rowInfo)}
       </tbody>
     </table>`;
   }
