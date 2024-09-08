@@ -1074,7 +1074,7 @@ export default class Stencil extends LitElement {
           ? 'diagonal'
           : ''}"
       >
-        ${mappedCb && this.templateCreationStage < 2 && !readOnly
+        ${mappedCb && !readOnly
           ? html`<md-checkbox
               class="cb ${mappedCb && mappedCb.type === 'SampledValueControl'
                 ? 'sv'
@@ -1099,7 +1099,7 @@ export default class Stencil extends LitElement {
         !this.createCBsToRemove.find(
           cb => cb.id === cbName && cb.from === row.fromIed && cb.to === toIed!
         ) &&
-        (this.templateCreationStage >= 2 || readOnly)
+        readOnly
           ? html`<md-icon
               class="cb ${mappedCb && mappedCb.type === 'SampledValueControl'
                 ? 'sv'
@@ -1417,6 +1417,7 @@ export default class Stencil extends LitElement {
 
   renderCbSelection(): TemplateResult {
     const { toIedNames, rowInfo } = this.getTableData();
+    const readOnly = this.templateCreationStage >= 2;
 
     return html`<h1>Select Template Control Blocks</h1>
       <div class="group">
@@ -1450,7 +1451,8 @@ export default class Stencil extends LitElement {
         ${this.renderCbSelectionTable(
           toIedNames,
           rowInfo,
-          this.iedMappingStencilData
+          this.iedMappingStencilData,
+          readOnly
         )}
       </div>
       <md-filled-button
