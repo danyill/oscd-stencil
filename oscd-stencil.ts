@@ -212,7 +212,7 @@ export default class Stencil extends LitElement {
   tableUserMappingSelectionFromIedsUI: HTMLElement[] | undefined;
 
   @queryAll(
-    '#tableUserMappingSelection > tr > th.cbname > md-checkbox.rowselect.iedname.cbname'
+    '#tableUserMappingSelection > tr > th.cbname > md-checkbox.rowselect.cbname'
   )
   tableUserMappingSelectionFromCbsUI: HTMLElement[] | undefined;
 
@@ -627,6 +627,14 @@ export default class Stencil extends LitElement {
     // reset application if switching to create tab
     if (Array.from(changedProperties.keys()).includes('tabIndex')) {
       this.resetCreateApplication();
+    }
+
+    if (Array.from(changedProperties.keys()).includes('allowEditColumns')) {
+      const { toIedNames, rowInfo } = this.getTableData();
+      if (this.allowEditColumns) {
+        this.requestUpdate();
+        this.updateDependentCheckboxes('map', toIedNames, rowInfo);
+      }
     }
   }
 
@@ -1128,7 +1136,10 @@ export default class Stencil extends LitElement {
     return html`${rowInfo.map(
       row =>
         html`<tr>
-            <th scope="row" class="iedname iednamebg removerightborder">
+            <th
+              scope="row"
+              class="iedname iednamebg removerightborder indentied"
+            >
               ${row.fromIed}
             </th>
             <th class="iedname iednamebg removeleftborder">
@@ -1168,16 +1179,16 @@ export default class Stencil extends LitElement {
                 html`<tr>
                   <th
                     scope="row"
-                    class="cbname removerightborder"
+                    class="cbname removerightborder indentcb"
                     data-fromIed="${row.fromIed}"
                     data-fromCb="${cbName}"
                   >
                     ${cbName.substring(2)}
                   </th>
-                  <th class="removeleftborder fromcb">
+                  <th class="removeleftborder cbname">
                     ${this.allowEditColumns
                       ? html`<md-checkbox
-                          class="rowselect iedname cbname"
+                          class="rowselect cbname"
                           data-fromIed="${row.fromIed}"
                           data-fromCb="${cbName}"
                           touch-target="wrapper"
@@ -1226,6 +1237,8 @@ export default class Stencil extends LitElement {
     fromIedName?: string,
     cbName?: string
   ): void {
+    if (!this.allowEditColumns) return;
+
     const updateCheckbox = (checkbox: Checkbox, selector: string) => {
       if (checkbox) {
         const rowIedsChecked = Array.from(
@@ -1258,7 +1271,7 @@ export default class Stencil extends LitElement {
           ) as Checkbox;
           const selector = `td.mapcell > md-checkbox[data-toied="${iedName}"]`;
           updateCheckbox(checkbox, selector);
-          console.log(`Updated a to ied ${iedName}`);
+          // console.log(`Updated a to ied ${iedName}`);
         });
       }
     }
@@ -1270,7 +1283,7 @@ export default class Stencil extends LitElement {
       const selector = `td.mapcell > md-checkbox[data-fromied="${fromIedName}"]`;
       updateCheckbox(checkbox, selector);
 
-      // update for all from ieds
+      // update for all from-IEDs
       if (!fromIedName) {
         fromIedNamesAndCBs.forEach(ied => {
           const checkbox = this.cbMappingsTableUI?.querySelector(
@@ -1278,44 +1291,42 @@ export default class Stencil extends LitElement {
           ) as Checkbox;
           const selector = `td.mapcell > md-checkbox[data-fromied="${ied.fromIed}"]`;
           updateCheckbox(checkbox, selector);
-          console.log(`Updated a from ied ${ied.fromIed}`);
+          // console.log(`Updated a from ied ${ied.fromIed}`);
         });
       }
     }
 
     if (source !== 'cb') {
       const checkbox = this.cbMappingsTableUI?.querySelector(
-        `:scope > tbody > tr > th.fromcb > md-checkbox.rowselect.cbname[data-fromied="${fromIedName}"][data-fromcb="${cbName}"]`
+        `:scope > tbody > tr > th.cbname > md-checkbox.rowselect.cbname[data-fromied="${fromIedName}"][data-fromcb="${cbName}"]`
       ) as Checkbox;
       const selector = `td.mapcell > md-checkbox[data-fromied="${fromIedName}"][data-fromcb="${cbName}"]`;
       updateCheckbox(checkbox, selector);
 
-      // update for all cbs
       if (!fromIedName && !cbName) {
+        // update for all IEDs and control blocks
         fromIedNamesAndCBs.forEach(ied => {
           ied.cbs?.forEach(cb => {
             const checkbox = this.cbMappingsTableUI?.querySelector(
-              `:scope > tbody > tr > th.fromcb > md-checkbox.rowselect.cbname[data-fromied="${ied.fromIed}"][data-fromcb="${cb}"]`
+              `:scope > tbody > tr > th.cbname > md-checkbox.rowselect.cbname[data-fromied="${ied.fromIed}"][data-fromcb="${cb}"]`
             ) as Checkbox;
             const selector = `td.mapcell > md-checkbox[data-fromied="${ied.fromIed}"][data-fromcb="${cb}"]`;
             updateCheckbox(checkbox, selector);
-            console.log(`Updated a cb ${ied.fromIed} ${cb}`);
+            // console.log(`Updated an all ieds and cb ${ied.fromIed} ${cb}`);
           });
         });
-      }
-
-      // update for all cbs
-      if (fromIedName && !cbName) {
+      } else if (fromIedName && !cbName) {
+        // update for all control blocks for a specific IED
         const fromData = fromIedNamesAndCBs.find(
           data => data.fromIed === fromIedName
         );
         fromData?.cbs?.forEach(cb => {
           const checkbox = this.cbMappingsTableUI?.querySelector(
-            `:scope > tbody > tr > th.fromcb > md-checkbox.rowselect.cbname[data-fromied="${fromIedName}"][data-fromcb="${cb}"]`
+            `:scope > tbody > tr > th.cbname > md-checkbox.rowselect.cbname[data-fromied="${fromIedName}"][data-fromcb="${cb}"]`
           ) as Checkbox;
           const selector = `td.mapcell > md-checkbox[data-fromied="${fromIedName}"][data-fromcb="${cb}"]`;
           updateCheckbox(checkbox, selector);
-          console.log(`Updated a cb ${fromIedName} ${cb}`);
+          // console.log(`Updated a cb ${fromIedName} ${cb}`);
         });
       }
     }
@@ -1439,9 +1450,6 @@ export default class Stencil extends LitElement {
             ?disabled=${!this.allowAppCreationToggles}
             @change=${() => {
               this.allowEditColumns = !this.allowEditColumns;
-              const { toIedNames, rowInfo } = this.getTableData();
-              if (this.allowEditColumns)
-                this.updateDependentCheckboxes('map', toIedNames, rowInfo);
             }}
           ></md-switch
           >Allow From/To Selection</label
@@ -1979,10 +1987,18 @@ export default class Stencil extends LitElement {
     .cbname {
       text-align: left;
       font-weight: 300;
-      padding-left: 20px;
-      padding-right: 20px;
+      /* padding-left: 2px; */
+      padding-right: 2px;
       position: sticky;
-      left: 0px;
+      left: 10px;
+    }
+
+    .indentcb {
+      padding-left: 35px;
+    }
+
+    .indentied {
+      padding-left: 25px;
     }
 
     .iednamebg {
@@ -1991,10 +2007,10 @@ export default class Stencil extends LitElement {
 
     .iedname {
       text-align: left;
-      padding-left: 5px;
-      padding-right: 5px;
+      /* padding-left: 2px; */
+      padding-right: 2px;
       position: sticky;
-      left: 0px;
+      left: 5px;
     }
 
     md-checkbox.cb {
