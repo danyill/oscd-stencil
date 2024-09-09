@@ -737,8 +737,8 @@ export default class Stencil extends LitElement {
 
             const ieds = this.iedsStencilMetadataUI?.selectedElements;
 
-            this.snackBarMessage = `Metadata added to ${ieds.length} IEDs${
-              ieds.length > 1 ? 's' : ''
+            this.snackBarMessage = `Metadata added to ${ieds.length} IED${
+              ieds.length > 1 || ieds.length === 0 ? 's' : ''
             }`;
             this.snackBarMessageUI.show();
             this.requestUpdate();
@@ -1691,6 +1691,12 @@ export default class Stencil extends LitElement {
           class="button"
           @click=${() => {
             this.iedStencilMetadataUI.show();
+            this.iedsStencilMetadataUI
+              .shadowRoot!.querySelectorAll('md-list-item > md-checkbox')
+              .forEach(
+                // eslint-disable-next-line no-return-assign, no-param-reassign
+                item => ((item as MdCheckbox).checked = false)
+              );
           }}
           >Add Stencil Metadata to IEDs
           <md-icon slot="icon">label</md-icon>
