@@ -41,7 +41,8 @@ import {
   Connection,
   find,
   subscribe,
-  instantiateSubscriptionSupervision
+  instantiateSubscriptionSupervision,
+  getReference
 } from '@openenergytools/scl-lib';
 import { newEditEvent } from '@openscd/open-scd-core';
 
@@ -188,6 +189,14 @@ export default class Stencil extends LitElement {
   @query('#selection-dialog') iedTemplateSelectorUI!: MdDialog;
 
   @query('#ied-function-selector-dialog') iedSelectorUI!: MdDialog;
+
+  @query('#ied-stencil-metadata') iedStencilMetadataUI!: MdDialog;
+
+  @query('#stencil-metadata-ieds') iedsStencilMetadataUI!: SelectionList;
+
+  @query('#stencil-id') stencilMetadataIdUI!: TextField;
+
+  @query('#stencil-ver') stencilMetadataVerUI!: TextField;
 
   @query('#selection-list') selectionListUI!: SelectionList;
 
@@ -638,9 +647,109 @@ export default class Stencil extends LitElement {
     }
   }
 
+  renderAddStencilMetadata(): TemplateResult {
+    if (!this.doc) return html``;
+
+    // TODO: Can't use ?disabled=${this.iedsStencilMetadataUI?.selectedElements.length === 0} on button?
+
+    return html`<md-dialog
+      id="ied-stencil-metadata"
+      @cancel=${(event: Event) => {
+        event.preventDefault();
+      }}
+    >
+      <div slot="headline">Select IEDs to add Stencil metadata to</div>
+      <form slot="content" id="stencil-metadata" method="dialog">
+        <md-outlined-text-field
+          id="stencil-id"
+          label="Stencil Id"
+          value="My Stencil"
+        ></md-outlined-text-field>
+        <md-outlined-text-field
+          id="stencil-ver"
+          label="Stencil Version"
+          value="1.0.0"
+        ></md-outlined-text-field>
+        <selection-list
+          id="stencil-metadata-ieds"
+          filterable
+          .items=${Array.from(this.doc!.querySelectorAll(':root > IED')).map(
+            ied => {
+              const { firstLine, secondLine } = getIedDescription(ied);
+
+              const id = ied.querySelector('Private[type="OpenSCD-Stencil-Id"]')
+                ?.textContent;
+              const ver = ied.querySelector(
+                'Private[type="OpenSCD-Stencil-Version"]'
+              )?.textContent;
+
+              return {
+                headline: `${ied.getAttribute('name')!} — ${firstLine}`,
+                supportingText: `${secondLine}${
+                  id && ver ? ` [${id}, ${ver}]` : ''
+                }`,
+                attachedElement: ied
+              };
+            }
+          )}
+        ></selection-list>
+      </form>
+      <div slot="actions">
+        <md-text-button form="stencil-metadata" value="reset"
+          >Cancel</md-text-button
+        >
+        <md-text-button
+          form="stencil-metadata"
+          value="ok"
+          @click="${() => {
+            this.iedsStencilMetadataUI?.selectedElements.forEach(ied => {
+              const id = this.doc.createElementNS(
+                this.doc.documentElement.namespaceURI,
+                'Private'
+              );
+              id.setAttribute('type', 'OpenSCD-Stencil-Id');
+              id.textContent = this.stencilMetadataIdUI.value.trim();
+
+              const ver = this.doc.createElementNS(
+                this.doc.documentElement.namespaceURI,
+                'Private'
+              );
+              ver.setAttribute('type', 'OpenSCD-Stencil-Version');
+              ver.textContent = this.stencilMetadataVerUI.value.trim();
+
+              const ref = getReference(ied, 'Private');
+
+              this.dispatchEvent(
+                newEditEvent([
+                  {
+                    parent: ied,
+                    node: id,
+                    reference: ref
+                  },
+                  {
+                    parent: ied,
+                    node: ver,
+                    reference: ref
+                  }
+                ])
+              );
+            });
+
+            const ieds = this.iedsStencilMetadataUI?.selectedElements;
+
+            this.snackBarMessage = `Metadata added to ${ieds.length} IEDs${
+              ieds.length > 1 ? 's' : ''
+            }`;
+            this.snackBarMessageUI.show();
+            this.requestUpdate();
+          }}"
+          >Add Metadata</md-text-button
+        >
+      </div></md-dialog
+    >`;
+  }
+
   renderFunctionIedSelector(): TemplateResult {
-    // if (!this.applicationSelectedFunction) return html``
-    // TODO: It is a roblem if the query
     const func = this.applicationSelectedFunction
       ? this.selectedAppVersion?.IEDS[this.applicationSelectedFunction]
       : null;
@@ -749,6 +858,12 @@ export default class Stencil extends LitElement {
                   return html`
                     <md-list-item
                       type="button"
+                      title="${ied.privates
+                        .map(
+                          priv =>
+                            `${priv['OpenSCD-Stencil-Id']} - ${priv['OpenSCD-Stencil-Version']}`
+                        )
+                        .join(`, `)}"
                       @click=${() => {
                         this.applicationSelectedFunction = iedFunction;
                         this.applicationSelectedFunctionReqs = ied;
@@ -1456,12 +1571,14 @@ export default class Stencil extends LitElement {
         >
       </div>
       <div class="columngroup">
-        ${this.renderCbSelectionTable(
-          toIedNames,
-          rowInfo,
-          this.iedMappingStencilData,
-          readOnly
-        )}
+        ${toIedNames.length === 0
+          ? html`<h3>No mappings found between devices</h3>`
+          : this.renderCbSelectionTable(
+              toIedNames,
+              rowInfo,
+              this.iedMappingStencilData,
+              readOnly
+            )}
       </div>
       <md-filled-button
         class="button"
@@ -1568,7 +1685,17 @@ export default class Stencil extends LitElement {
       return html`<h1>Please open a file to use this functionality</h1>`;
 
     return html`
-      <h1>Enter Stencil Data</h1>
+      <h1 id="enterStencilData">
+        Enter Stencil Data
+        <md-outlined-button
+          class="button"
+          @click=${() => {
+            this.iedStencilMetadataUI.show();
+          }}
+          >Add Stencil Metadata to IEDs
+          <md-icon slot="icon">label</md-icon>
+        </md-outlined-button>
+      </h1>
       <div class="group appinf">
         <md-outlined-text-field
           id="stenname"
@@ -1608,7 +1735,7 @@ export default class Stencil extends LitElement {
             this.appDeprecated.checked = false;
           }}
           >Reset Application
-          <md-icon slot="icon">draw_collage</md-icon>
+          <md-icon slot="icon">restart_alt</md-icon>
         </md-outlined-button>
       </h1>
       <div class="group appinf">
@@ -1784,10 +1911,10 @@ export default class Stencil extends LitElement {
         ${this.tabIndex === 1 ? this.renderCreate() : nothing}
         ${this.tabIndex === 2 ? this.renderView() : nothing}
       </section>
-      ${this.renderTemplateIedsSelector()} ${this.renderFunctionIedSelector()}
+      ${this.renderTemplateIedsSelector()}${this.renderFunctionIedSelector()}
       <mwc-snackbar id="snackBarMessage" labelText="${this.snackBarMessage}">
       </mwc-snackbar>
-      ${this.renderErrorMessages()}`;
+      ${this.renderAddStencilMetadata()}${this.renderErrorMessages()}`;
   }
 
   static styles = css`
@@ -1888,6 +2015,11 @@ export default class Stencil extends LitElement {
     #deprecated {
       display: flex;
       align-items: center;
+    }
+
+    #enterStencilData {
+      display: flex;
+      justify-content: space-between;
     }
 
     .button,
