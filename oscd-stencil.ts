@@ -42,14 +42,16 @@ import {
   find,
   subscribe,
   instantiateSubscriptionSupervision,
-  getReference
+  getReference,
+  Update
 } from '@openenergytools/scl-lib';
 import { newEditEvent } from '@openscd/open-scd-core';
 
 import { Checkbox } from '@material/web/checkbox/internal/checkbox.js';
 import {
   ControlBlockInfo,
-  getMappingInfo
+  getMappingInfo,
+  MappingBase
 } from './foundation/getMappingInfo.js';
 import { combinations } from './combinations.js';
 import { getIedDescription } from './getIedDescription.js';
@@ -161,8 +163,6 @@ export default class Stencil extends LitElement {
   @property() allowEditColumns: boolean = false;
 
   @property() allowAppCreationToggles: boolean = true;
-
-  // items: SelectItem[] = [];
 
   @query('mwc-tab-bar') tabBarUI!: TabBar;
 
@@ -511,6 +511,10 @@ export default class Stencil extends LitElement {
         }
 
         const cbSubscriptions = cb.mappings
+          .filter(
+            (mapping): mapping is MappingBase & { FCDA: string } =>
+              'FCDA' in mapping && !mapping.SELMessageQuality
+          )
           .map(mapping => {
             const newSourceId = newIedIdentity(newFromIed, mapping.FCDA);
             const newSource = find(this.doc, 'FCDA', newSourceId);
@@ -538,15 +542,57 @@ export default class Stencil extends LitElement {
           })
           .flatMap(mapping => (mapping ? [mapping] : [])) as Connection[];
 
+        const selSupervisions: Update[] = cb.mappings
+          .filter(
+            (mapping): mapping is MappingBase & { SELMessageQuality: string } =>
+              'SELMessageQuality' in mapping && !mapping.FCDA
+          )
+          .map(mapping => {
+            const qualExtRefId = newIedIdentity(newToIed, mapping.ExtRef);
+            const qualExtRef = find(this.doc, 'ExtRef', qualExtRefId);
+            if (!qualExtRef) {
+              this.errorMessages.push(
+                `Could not find ExtRef for quality mapping: ${qualExtRef}`
+              );
+              return null;
+            }
+
+            const cbName = newCb.getAttribute('name');
+            const srcLDInst = newCb.closest('LDevice')?.getAttribute('inst');
+            const srcPrefix =
+              newCb.closest('LN0, LN')?.getAttribute('prefix') ?? '';
+            const srcLNClass = newCb
+              .closest('LN0, LN')
+              ?.getAttribute('lnClass');
+            const srcLNInst = newCb.closest('LN0, LN')?.getAttribute('inst');
+
+            return {
+              element: qualExtRef,
+              attributes: {
+                iedName: newToIed,
+                srcCBName: cbName,
+                srcLDInst,
+                ...(srcPrefix && { srcPrefix }),
+                srcLNClass,
+                ...(srcLNInst && { srcLNInst })
+              }
+            };
+          })
+          .flatMap(mapping => (mapping ? [mapping] : []));
+
         subscriptionsCount += cbSubscriptions.length;
+        // it is kind of a supervision
+        supervisionsCount += selSupervisions.length;
+
         this.dispatchEvent(
-          newEditEvent(
-            subscribe(cbSubscriptions, {
+          newEditEvent([
+            selSupervisions,
+            ...subscribe(cbSubscriptions, {
               force: true,
               ignoreSupervision: true,
               checkOnlyBType: true
             })
-          )
+          ])
         );
 
         const newSupervisionId = newIedIdentity(newToIed, cb.supervision);
@@ -1192,6 +1238,11 @@ export default class Stencil extends LitElement {
       const mappedCb = mappingData.find(
         cb => cb.id === cbName && cb.from === row.fromIed && cb.to === toIed
       );
+
+      const selSupervisionMapping = mappedCb?.mappings.find(
+        mapping => !mapping.FCDA && mapping.SELMessageQuality
+      );
+
       return html`<td
         class="${mappedCb ? 'mapcell' : ''} ${row.fromIed === toIed
           ? 'diagonal'
@@ -1236,6 +1287,14 @@ export default class Stencil extends LitElement {
               ${mappedCb.supervision === 'None'
                 ? 'None'
                 : mappedCb.supervision.substring(2)}
+            </p>`
+          : nothing}
+        <!-- SEL supervision -->
+        ${mappedCb && selSupervisionMapping && this.showSupervisions
+          ? html`<p id="supervisionInfoSEL">
+              ${selSupervisionMapping
+                ? selSupervisionMapping.SELMessageQuality
+                : nothing}
             </p>`
           : nothing}
       </td>`;
@@ -2210,7 +2269,8 @@ export default class Stencil extends LitElement {
       padding-left: 20px;
     }
 
-    #supervisionInfo {
+    #supervisionInfo,
+    #supervisionInfoSEL {
       font-size: 10px;
     }
 
