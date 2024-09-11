@@ -13288,41 +13288,6 @@ function globalLnInstGenerator() {
     };
 }
 
-const serviceType = {
-    GSEControl: "GOOSE",
-    SampledValueControl: "SMV",
-    ReportControl: "Report",
-};
-/** @returns Whether src... type ExtRef attributes match Control element*/
-function matchSrcAttributes(extRef, control) {
-    const cbName = control.getAttribute("name");
-    const srcLDInst = control.closest("LDevice")?.getAttribute("inst");
-    const srcPrefix = control.closest("LN0, LN")?.getAttribute("prefix") ?? "";
-    const srcLNClass = control.closest("LN0, LN")?.getAttribute("lnClass");
-    const srcLNInst = control.closest("LN0, LN")?.getAttribute("inst");
-    const extRefSrcLNClass = extRef.getAttribute("srcLNClass");
-    const srcLnClassCheck = !extRefSrcLNClass || extRefSrcLNClass === ""
-        ? "LLN0" === srcLNClass
-        : extRefSrcLNClass === srcLNClass;
-    const extRefSrcLDInst = extRef.getAttribute("srcLDInst");
-    const srcLdInstCheck = !extRefSrcLDInst || extRefSrcLDInst === ""
-        ? extRef.getAttribute("ldInst") === srcLDInst
-        : extRefSrcLDInst === srcLDInst;
-    return (extRef.getAttribute("srcCBName") === cbName &&
-        srcLdInstCheck &&
-        (extRef.getAttribute("srcPrefix") ?? "") === srcPrefix &&
-        (extRef.getAttribute("srcLNInst") ?? "") === srcLNInst &&
-        srcLnClassCheck &&
-        extRef.getAttribute("serviceType") === serviceType[control.tagName]);
-}
-
-/** @returns all ExtRef element subscribed to a control block element */
-function findControlBlockSubscription(control) {
-    const doc = control.ownerDocument;
-    const iedName = control.closest("IED")?.getAttribute("name");
-    return Array.from(doc.querySelectorAll(`ExtRef[iedName="${iedName}"]`)).filter((extRef) => matchSrcAttributes(extRef, control));
-}
-
 /** @returns Whether a ExtRef to FCDA reference match */
 function matchDataAttributes(extRef, fcda) {
     return (extRef.getAttribute("ldInst") === fcda.getAttribute("ldInst") &&
@@ -15173,6 +15138,11 @@ function newEditEvent(edit) {
     });
 }
 
+const serviceType = {
+    GSEControl: 'GOOSE',
+    SampledValueControl: 'SMV',
+    ReportControl: 'Report'
+};
 /**
  * Check if the ExtRef is already subscribed to a FCDA Element.
  *
@@ -15184,6 +15154,48 @@ function isSubscribed(extRef) {
         extRef.hasAttribute('lnClass') &&
         extRef.hasAttribute('lnInst') &&
         extRef.hasAttribute('doName'));
+}
+/**
+ * A near copy of the same function in scl-lib.
+ * Excludes the service type match.
+ */
+function matchSrcAttributes(extRef, control) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    const cbName = control.getAttribute('name');
+    const srcLDInst = (_a = control.closest('LDevice')) === null || _a === void 0 ? void 0 : _a.getAttribute('inst');
+    const srcPrefix = (_c = (_b = control.closest('LN0, LN')) === null || _b === void 0 ? void 0 : _b.getAttribute('prefix')) !== null && _c !== void 0 ? _c : '';
+    const srcLNClass = (_d = control.closest('LN0, LN')) === null || _d === void 0 ? void 0 : _d.getAttribute('lnClass');
+    const srcLNInst = (_e = control.closest('LN0, LN')) === null || _e === void 0 ? void 0 : _e.getAttribute('inst');
+    const extRefSrcLNClass = extRef.getAttribute('srcLNClass');
+    const srcLnClassCheck = !extRefSrcLNClass || extRefSrcLNClass === ''
+        ? srcLNClass === 'LLN0'
+        : extRefSrcLNClass === srcLNClass;
+    const extRefSrcLDInst = extRef.getAttribute('srcLDInst');
+    const srcLdInstCheck = !extRefSrcLDInst || extRefSrcLDInst === ''
+        ? extRef.getAttribute('ldInst') === srcLDInst
+        : extRefSrcLDInst === srcLDInst;
+    return ((extRef.getAttribute('srcCBName') === cbName &&
+        srcLdInstCheck &&
+        ((_f = extRef.getAttribute('srcPrefix')) !== null && _f !== void 0 ? _f : '') === srcPrefix &&
+        ((_g = extRef.getAttribute('srcLNInst')) !== null && _g !== void 0 ? _g : '') === srcLNInst &&
+        srcLnClassCheck &&
+        extRef.getAttribute('serviceType') === serviceType[control.tagName]) ||
+        !extRef.getAttribute('serviceType'));
+}
+function isSELMessageQuality(extRef, toIedName) {
+    const toIed = extRef.ownerDocument.querySelector(`:root > IED[name="${toIedName}"]`);
+    const isSEL = toIed && toIed.getAttribute('manufacturer') === 'SEL';
+    const hasNoServiceType = !extRef.getAttribute('serviceType') ||
+        extRef.getAttribute('serviceType') === '';
+    return isSEL && hasNoServiceType && !isSubscribed(extRef);
+}
+function findSELMessageQuality(control, toIedName) {
+    const doc = control.ownerDocument;
+    const fromIedName = control.closest('IED').getAttribute('name');
+    return Array.from(doc.querySelectorAll(`:root>IED[name="${toIedName}"]>AccessPoint>Server>LDevice>LN0>Inputs>ExtRef[iedName="${fromIedName}"], 
+      :root>IED[name="${toIedName}"]>AccessPoint>Server>LDevice>LN>Inputs>ExtRef[iedName="${fromIedName}"]`)).find(extRef => matchSrcAttributes(extRef, control) &&
+        !isSubscribed(extRef) &&
+        isSELMessageQuality(extRef, fromIedName));
 }
 function getFCDA(cb, extRef) {
     const dsName = cb.getAttribute('datSet');
@@ -15202,20 +15214,26 @@ function identityNoIed(element, iedName) {
         return 'NONE';
     return `${identity(element)}`.substring(iedName.length);
 }
-// function identityNoIed(element: Element | null): string {
-//     if (element === null) return 'NONE';
-//     const id = `${identity(element)}`;
-//     return id.substring(id.indexOf('>') + 1);
-//   }
-function getMappingInfo(doc, fromName, toName) {
+/** @returns all ExtRef element subscribed to a control block element for a specific subscribing IED */
+function findControlBlockSubscription(control, toIedName) {
+    var _a;
+    const doc = control.ownerDocument;
+    const fromIedName = (_a = control.closest('IED')) === null || _a === void 0 ? void 0 : _a.getAttribute('name');
+    return Array.from(doc.querySelectorAll(`:root>IED[name="${toIedName}"]>AccessPoint>Server>LDevice>LN0>Inputs>ExtRef[iedName="${fromIedName}"], 
+      :root>IED[name="${toIedName}"]>AccessPoint>Server>LDevice>LN>Inputs>ExtRef[iedName="${fromIedName}"]`)).filter(extRef => matchSrcAttributes(extRef, control));
+}
+function getMappingInfo(doc, fromName, toName, includeSELSupervision = true) {
     const fromIed = doc.querySelector(`:root > IED[name="${fromName}"`);
     const controlBlocks = Array.from(fromIed.querySelectorAll('GSEControl, SampledValueControl'));
     const cbMappings = [];
     controlBlocks.forEach((cb) => {
-        var _a;
-        const extRefMappings = findControlBlockSubscription(cb)
-            .filter(extRef => extRef.closest('IED').getAttribute('name') === toName &&
-            isSubscribed(extRef))
+        var _a, _b;
+        const extRefMappings = findControlBlockSubscription(cb, toName)
+            .filter(extRef => {
+            const iedNameMatch = extRef.closest('IED').getAttribute('name') === toName;
+            return (iedNameMatch &&
+                (isSubscribed(extRef) || isSELMessageQuality(extRef, toName)));
+        })
             .map(extRef => {
             var _a;
             return ({
@@ -15226,6 +15244,17 @@ function getMappingInfo(doc, fromName, toName) {
         if (extRefMappings.length) {
             const toIed = doc.querySelector(`:root > IED[name="${toName}"`);
             const supLn = (_a = findSupervision(cb, toIed)) !== null && _a !== void 0 ? _a : null;
+            let selSupervision;
+            if (includeSELSupervision) {
+                // this is not especially efficient
+                const selMqExtRef = findSELMessageQuality(cb, toName);
+                selSupervision = selMqExtRef
+                    ? {
+                        name: (_b = selMqExtRef.getAttribute('intAddr')) !== null && _b !== void 0 ? _b : 'No internal address!!',
+                        ExtRef: identityNoIed(selMqExtRef, toName)
+                    }
+                    : undefined;
+            }
             cbMappings.push({
                 id: `${identityNoIed(cb, fromName)}`,
                 name: cb.getAttribute('name'),
@@ -15233,7 +15262,8 @@ function getMappingInfo(doc, fromName, toName) {
                 to: toName,
                 type: cb.tagName,
                 mappings: extRefMappings,
-                supervision: supLn ? `${identityNoIed(supLn, toName)}` : 'None'
+                supervision: supLn ? `${identityNoIed(supLn, toName)}` : 'None',
+                ...(includeSELSupervision && selSupervision && { selSupervision })
             });
         }
     });
@@ -15338,7 +15368,7 @@ class Stencil extends s$d {
                 manufacturer: ied.getAttribute('manufacturer'),
                 privates: [
                     {
-                        'OpenSCD-Stencil-Id': (_c = (_b = ied.querySelector(':scope > Private[type="OpenSCD-Stencil-Id"]')) === null || _b === void 0 ? void 0 : _b.textContent) !== null && _c !== void 0 ? _c : 'No Stencil ID Found',
+                        'OpenSCD-Stencil-Id': (_c = (_b = ied.querySelector(':scope > Private[type="OpenSCD-Stencil-Id"]')) === null || _b === void 0 ? void 0 : _b.textContent) !== null && _c !== void 0 ? _c : 'No Stencil Id Found',
                         'OpenSCD-Stencil-Version': (_e = (_d = ied.querySelector(':scope > Private[type="OpenSCD-Stencil-Version"]')) === null || _d === void 0 ? void 0 : _d.textContent) !== null && _e !== void 0 ? _e : 'No Stencil Version Found'
                     }
                 ]
@@ -15532,6 +15562,7 @@ class Stencil extends s$d {
             const newIed2Name = this.functionToIed.get(fn2);
             (_a = this.selectedAppVersion) === null || _a === void 0 ? void 0 : _a.ControlBlocks.filter(cb => (cb.from === fn1 && cb.to === fn2) ||
                 (cb.to === fn1 && cb.from === fn2)).forEach(cb => {
+                var _a, _b, _c, _d, _e;
                 const newFromIed = cb.from === fn1 ? newIed1Name : newIed2Name;
                 const newToIed = cb.to === fn1 ? newIed1Name : newIed2Name;
                 const newCbId = newIedIdentity(newFromIed, cb.id);
@@ -15563,12 +15594,43 @@ class Stencil extends s$d {
                     };
                 })
                     .flatMap(mapping => (mapping ? [mapping] : []));
+                let selSupervision = null;
+                if (cb.selSupervision) {
+                    const qualExtRefId = newIedIdentity(newToIed, cb.selSupervision.ExtRef);
+                    const qualExtRef = find(this.doc, 'ExtRef', qualExtRefId);
+                    if (!qualExtRef) {
+                        this.errorMessages.push(`Could not find ExtRef for quality mapping: ${qualExtRef}`);
+                    }
+                    const cbName = newCb.getAttribute('name');
+                    const srcLDInst = (_a = newCb.closest('LDevice')) === null || _a === void 0 ? void 0 : _a.getAttribute('inst');
+                    const srcPrefix = (_c = (_b = newCb.closest('LN0, LN')) === null || _b === void 0 ? void 0 : _b.getAttribute('prefix')) !== null && _c !== void 0 ? _c : '';
+                    const srcLNClass = (_d = newCb.closest('LN0, LN')) === null || _d === void 0 ? void 0 : _d.getAttribute('lnClass');
+                    const srcLNInst = (_e = newCb.closest('LN0, LN')) === null || _e === void 0 ? void 0 : _e.getAttribute('inst');
+                    if (qualExtRef) {
+                        selSupervision = {
+                            element: qualExtRef,
+                            attributes: {
+                                iedName: newFromIed,
+                                srcCBName: cbName,
+                                srcLDInst,
+                                ...(srcPrefix && { srcPrefix }),
+                                srcLNClass,
+                                ...(srcLNInst && { srcLNInst })
+                            }
+                        };
+                    }
+                }
                 subscriptionsCount += cbSubscriptions.length;
-                this.dispatchEvent(newEditEvent(subscribe(cbSubscriptions, {
-                    force: true,
-                    ignoreSupervision: true,
-                    checkOnlyBType: true
-                })));
+                // it is kind of a supervision
+                supervisionsCount += 1;
+                this.dispatchEvent(newEditEvent([
+                    ...(selSupervision ? [selSupervision] : []),
+                    ...subscribe(cbSubscriptions, {
+                        force: true,
+                        ignoreSupervision: true,
+                        checkOnlyBType: true
+                    })
+                ]));
                 const newSupervisionId = newIedIdentity(newToIed, cb.supervision);
                 const newSupervision = find(this.doc, 'LN', newSupervisionId);
                 if (!newSupervision && cb.supervision !== 'None') {
@@ -16084,6 +16146,7 @@ class Stencil extends s$d {
     renderRowCbUsed(cbName, row, toIedNames, rowInfo, mappingData, readOnly) {
         return x$1 `${toIedNames.map(toIed => {
             const mappedCb = mappingData.find(cb => cb.id === cbName && cb.from === row.fromIed && cb.to === toIed);
+            const selSupervisionMapping = mappedCb === null || mappedCb === void 0 ? void 0 : mappedCb.selSupervision;
             return x$1 `<td
         class="${mappedCb ? 'mapcell' : ''} ${row.fromIed === toIed
                 ? 'diagonal'
@@ -16120,6 +16183,12 @@ class Stencil extends s$d {
               ${mappedCb.supervision === 'None'
                     ? 'None'
                     : mappedCb.supervision.substring(2)}
+            </p>`
+                : T$1}
+        <!-- SEL supervision -->
+        ${mappedCb && selSupervisionMapping && this.showSupervisions
+                ? x$1 `<p id="supervisionInfoSEL">
+              ${selSupervisionMapping ? selSupervisionMapping.name : T$1}
             </p>`
                 : T$1}
       </td>`;
@@ -16959,7 +17028,8 @@ Stencil.styles = i$a `
       padding-left: 20px;
     }
 
-    #supervisionInfo {
+    #supervisionInfo,
+    #supervisionInfoSEL {
       font-size: 10px;
     }
 
