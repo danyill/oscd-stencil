@@ -50,8 +50,7 @@ import { newEditEvent } from '@openscd/open-scd-core';
 import { Checkbox } from '@material/web/checkbox/internal/checkbox.js';
 import {
   ControlBlockInfo,
-  getMappingInfo,
-  MappingBase
+  getMappingInfo
 } from './foundation/getMappingInfo.js';
 import { combinations } from './combinations.js';
 import { getIedDescription } from './getIedDescription.js';
@@ -264,7 +263,7 @@ export default class Stencil extends LitElement {
           {
             'OpenSCD-Stencil-Id':
               ied.querySelector(':scope > Private[type="OpenSCD-Stencil-Id"]')
-                ?.textContent ?? 'No Stencil ID Found',
+                ?.textContent ?? 'No Stencil Id Found',
             'OpenSCD-Stencil-Version':
               ied.querySelector(
                 ':scope > Private[type="OpenSCD-Stencil-Version"]'
@@ -511,10 +510,6 @@ export default class Stencil extends LitElement {
         }
 
         const cbSubscriptions = cb.mappings
-          .filter(
-            (mapping): mapping is MappingBase & { FCDA: string } =>
-              'FCDA' in mapping && !mapping.SELMessageQuality
-          )
           .map(mapping => {
             const newSourceId = newIedIdentity(newFromIed, mapping.FCDA);
             const newSource = find(this.doc, 'FCDA', newSourceId);
@@ -542,34 +537,32 @@ export default class Stencil extends LitElement {
           })
           .flatMap(mapping => (mapping ? [mapping] : [])) as Connection[];
 
-        const selSupervisions: Update[] = cb.mappings
-          .filter(
-            (mapping): mapping is MappingBase & { SELMessageQuality: string } =>
-              'SELMessageQuality' in mapping && !mapping.FCDA
-          )
-          .map(mapping => {
-            const qualExtRefId = newIedIdentity(newToIed, mapping.ExtRef);
-            const qualExtRef = find(this.doc, 'ExtRef', qualExtRefId);
-            if (!qualExtRef) {
-              this.errorMessages.push(
-                `Could not find ExtRef for quality mapping: ${qualExtRef}`
-              );
-              return null;
-            }
+        let selSupervision: Update | null = null;
 
-            const cbName = newCb.getAttribute('name');
-            const srcLDInst = newCb.closest('LDevice')?.getAttribute('inst');
-            const srcPrefix =
-              newCb.closest('LN0, LN')?.getAttribute('prefix') ?? '';
-            const srcLNClass = newCb
-              .closest('LN0, LN')
-              ?.getAttribute('lnClass');
-            const srcLNInst = newCb.closest('LN0, LN')?.getAttribute('inst');
+        if (cb.selSupervision) {
+          const qualExtRefId = newIedIdentity(
+            newToIed,
+            cb.selSupervision.ExtRef
+          );
+          const qualExtRef = find(this.doc, 'ExtRef', qualExtRefId);
+          if (!qualExtRef) {
+            this.errorMessages.push(
+              `Could not find ExtRef for quality mapping: ${qualExtRef}`
+            );
+          }
 
-            return {
+          const cbName = newCb.getAttribute('name')!;
+          const srcLDInst = newCb.closest('LDevice')?.getAttribute('inst');
+          const srcPrefix =
+            newCb.closest('LN0, LN')?.getAttribute('prefix') ?? '';
+          const srcLNClass = newCb.closest('LN0, LN')?.getAttribute('lnClass');
+          const srcLNInst = newCb.closest('LN0, LN')?.getAttribute('inst');
+
+          if (qualExtRef) {
+            selSupervision = {
               element: qualExtRef,
               attributes: {
-                iedName: newToIed,
+                iedName: newFromIed,
                 srcCBName: cbName,
                 srcLDInst,
                 ...(srcPrefix && { srcPrefix }),
@@ -577,16 +570,16 @@ export default class Stencil extends LitElement {
                 ...(srcLNInst && { srcLNInst })
               }
             };
-          })
-          .flatMap(mapping => (mapping ? [mapping] : []));
+          }
+        }
 
         subscriptionsCount += cbSubscriptions.length;
         // it is kind of a supervision
-        supervisionsCount += selSupervisions.length;
+        supervisionsCount += 1;
 
         this.dispatchEvent(
           newEditEvent([
-            selSupervisions,
+            ...(selSupervision ? [selSupervision] : []),
             ...subscribe(cbSubscriptions, {
               force: true,
               ignoreSupervision: true,
@@ -1239,9 +1232,7 @@ export default class Stencil extends LitElement {
         cb => cb.id === cbName && cb.from === row.fromIed && cb.to === toIed
       );
 
-      const selSupervisionMapping = mappedCb?.mappings.find(
-        mapping => !mapping.FCDA && mapping.SELMessageQuality
-      );
+      const selSupervisionMapping = mappedCb?.selSupervision;
 
       return html`<td
         class="${mappedCb ? 'mapcell' : ''} ${row.fromIed === toIed
@@ -1292,9 +1283,7 @@ export default class Stencil extends LitElement {
         <!-- SEL supervision -->
         ${mappedCb && selSupervisionMapping && this.showSupervisions
           ? html`<p id="supervisionInfoSEL">
-              ${selSupervisionMapping
-                ? selSupervisionMapping.SELMessageQuality
-                : nothing}
+              ${selSupervisionMapping ? selSupervisionMapping.name : nothing}
             </p>`
           : nothing}
       </td>`;
