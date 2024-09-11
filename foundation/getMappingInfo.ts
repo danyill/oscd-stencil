@@ -1,13 +1,12 @@
 import {
   controlBlockObjRef,
-  findControlBlockSubscription,
   identity,
   matchDataAttributes
 } from '@openenergytools/scl-lib';
 
-type Mapping = {
-  FCDA: string;
+export type Mapping = {
   ExtRef: string;
+  FCDA: string;
 };
 
 export type ControlBlockInfo = {
@@ -20,6 +19,16 @@ export type ControlBlockInfo = {
   type: string;
   mappings: Mapping[];
   supervision: string;
+  selSupervision?: {
+    ExtRef: string;
+    name: string;
+  };
+};
+
+const serviceType: Partial<Record<string, string>> = {
+  GSEControl: 'GOOSE',
+  SampledValueControl: 'SMV',
+  ReportControl: 'Report'
 };
 
 /**
@@ -34,6 +43,71 @@ function isSubscribed(extRef: Element): boolean {
     extRef.hasAttribute('lnClass') &&
     extRef.hasAttribute('lnInst') &&
     extRef.hasAttribute('doName')
+  );
+}
+
+/**
+ * A near copy of the same function in scl-lib.
+ * Excludes the service type match.
+ */
+export function matchSrcAttributes(extRef: Element, control: Element): boolean {
+  const cbName = control.getAttribute('name');
+  const srcLDInst = control.closest('LDevice')?.getAttribute('inst');
+  const srcPrefix = control.closest('LN0, LN')?.getAttribute('prefix') ?? '';
+  const srcLNClass = control.closest('LN0, LN')?.getAttribute('lnClass');
+  const srcLNInst = control.closest('LN0, LN')?.getAttribute('inst');
+
+  const extRefSrcLNClass = extRef.getAttribute('srcLNClass');
+  const srcLnClassCheck =
+    !extRefSrcLNClass || extRefSrcLNClass === ''
+      ? srcLNClass === 'LLN0'
+      : extRefSrcLNClass === srcLNClass;
+
+  const extRefSrcLDInst = extRef.getAttribute('srcLDInst');
+  const srcLdInstCheck =
+    !extRefSrcLDInst || extRefSrcLDInst === ''
+      ? extRef.getAttribute('ldInst') === srcLDInst
+      : extRefSrcLDInst === srcLDInst;
+
+  return (
+    (extRef.getAttribute('srcCBName') === cbName &&
+      srcLdInstCheck &&
+      (extRef.getAttribute('srcPrefix') ?? '') === srcPrefix &&
+      (extRef.getAttribute('srcLNInst') ?? '') === srcLNInst &&
+      srcLnClassCheck &&
+      extRef.getAttribute('serviceType') === serviceType[control.tagName]) ||
+    !extRef.getAttribute('serviceType')
+  );
+}
+
+function isSELMessageQuality(extRef: Element, toIedName: string) {
+  const toIed = extRef.ownerDocument.querySelector(
+    `:root > IED[name="${toIedName}"]`
+  );
+  const isSEL = toIed && toIed.getAttribute('manufacturer') === 'SEL';
+  const hasNoServiceType =
+    !extRef.getAttribute('serviceType') ||
+    extRef.getAttribute('serviceType') === '';
+  return isSEL && hasNoServiceType && !isSubscribed(extRef);
+}
+
+function findSELMessageQuality(
+  control: Element,
+  toIedName: string
+): Element | undefined {
+  const doc = control.ownerDocument;
+  const fromIedName = control.closest('IED')!.getAttribute('name')!;
+
+  return Array.from(
+    doc.querySelectorAll(
+      `:root>IED[name="${toIedName}"]>AccessPoint>Server>LDevice>LN0>Inputs>ExtRef[iedName="${fromIedName}"], 
+      :root>IED[name="${toIedName}"]>AccessPoint>Server>LDevice>LN>Inputs>ExtRef[iedName="${fromIedName}"]`
+    )
+  ).find(
+    extRef =>
+      matchSrcAttributes(extRef, control) &&
+      !isSubscribed(extRef) &&
+      isSELMessageQuality(extRef, fromIedName)
   );
 }
 
@@ -65,16 +139,27 @@ function identityNoIed(element: Element | null, iedName: string): string {
   return `${identity(element)}`.substring(iedName.length);
 }
 
-// function identityNoIed(element: Element | null): string {
-//     if (element === null) return 'NONE';
-//     const id = `${identity(element)}`;
-//     return id.substring(id.indexOf('>') + 1);
-//   }
+/** @returns all ExtRef element subscribed to a control block element for a specific subscribing IED */
+function findControlBlockSubscription(
+  control: Element,
+  toIedName: string
+): Element[] {
+  const doc = control.ownerDocument;
+  const fromIedName = control.closest('IED')?.getAttribute('name');
+
+  return Array.from(
+    doc.querySelectorAll(
+      `:root>IED[name="${toIedName}"]>AccessPoint>Server>LDevice>LN0>Inputs>ExtRef[iedName="${fromIedName}"], 
+      :root>IED[name="${toIedName}"]>AccessPoint>Server>LDevice>LN>Inputs>ExtRef[iedName="${fromIedName}"]`
+    )
+  ).filter(extRef => matchSrcAttributes(extRef, control));
+}
 
 export function getMappingInfo(
   doc: XMLDocument,
   fromName: string,
-  toName: string
+  toName: string,
+  includeSELSupervision = true
 ): ControlBlockInfo[] {
   const fromIed = doc.querySelector(`:root > IED[name="${fromName}"`)!;
 
@@ -85,19 +170,36 @@ export function getMappingInfo(
   const cbMappings: ControlBlockInfo[] = [];
 
   controlBlocks.forEach((cb: Element) => {
-    const extRefMappings = findControlBlockSubscription(cb)
-      .filter(
-        extRef =>
-          extRef.closest('IED')!.getAttribute('name') === toName &&
-          isSubscribed(extRef)
-      )
+    const extRefMappings = findControlBlockSubscription(cb, toName)
+      .filter(extRef => {
+        const iedNameMatch =
+          extRef.closest('IED')!.getAttribute('name') === toName;
+        return (
+          iedNameMatch &&
+          (isSubscribed(extRef) || isSELMessageQuality(extRef, toName))
+        );
+      })
       .map(extRef => ({
         FCDA: identityNoIed(getFCDA(cb, extRef) ?? null, fromName),
         ExtRef: identityNoIed(extRef, toName)
       }));
+
     if (extRefMappings.length) {
       const toIed = doc.querySelector(`:root > IED[name="${toName}"`)!;
       const supLn = findSupervision(cb, toIed) ?? null;
+
+      let selSupervision;
+      if (includeSELSupervision) {
+        // this is not especially efficient
+        const selMqExtRef = findSELMessageQuality(cb, toName);
+        selSupervision = selMqExtRef
+          ? {
+              name:
+                selMqExtRef.getAttribute('intAddr') ?? 'No internal address!!',
+              ExtRef: identityNoIed(selMqExtRef, toName)
+            }
+          : undefined;
+      }
 
       cbMappings.push({
         id: `${identityNoIed(cb, fromName)}`,
@@ -106,7 +208,8 @@ export function getMappingInfo(
         to: toName,
         type: cb.tagName,
         mappings: extRefMappings,
-        supervision: supLn ? `${identityNoIed(supLn, toName)}` : 'None'
+        supervision: supLn ? `${identityNoIed(supLn, toName)}` : 'None',
+        ...(includeSELSupervision && selSupervision && { selSupervision })
       });
     }
   });

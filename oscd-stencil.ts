@@ -42,7 +42,8 @@ import {
   find,
   subscribe,
   instantiateSubscriptionSupervision,
-  getReference
+  getReference,
+  Update
 } from '@openenergytools/scl-lib';
 import { newEditEvent } from '@openscd/open-scd-core';
 
@@ -162,8 +163,6 @@ export default class Stencil extends LitElement {
 
   @property() allowAppCreationToggles: boolean = true;
 
-  // items: SelectItem[] = [];
-
   @query('mwc-tab-bar') tabBarUI!: TabBar;
 
   @query('#output') outputStencilUI!: TextField;
@@ -264,7 +263,7 @@ export default class Stencil extends LitElement {
           {
             'OpenSCD-Stencil-Id':
               ied.querySelector(':scope > Private[type="OpenSCD-Stencil-Id"]')
-                ?.textContent ?? 'No Stencil ID Found',
+                ?.textContent ?? 'No Stencil Id Found',
             'OpenSCD-Stencil-Version':
               ied.querySelector(
                 ':scope > Private[type="OpenSCD-Stencil-Version"]'
@@ -538,15 +537,55 @@ export default class Stencil extends LitElement {
           })
           .flatMap(mapping => (mapping ? [mapping] : [])) as Connection[];
 
+        let selSupervision: Update | null = null;
+
+        if (cb.selSupervision) {
+          const qualExtRefId = newIedIdentity(
+            newToIed,
+            cb.selSupervision.ExtRef
+          );
+          const qualExtRef = find(this.doc, 'ExtRef', qualExtRefId);
+          if (!qualExtRef) {
+            this.errorMessages.push(
+              `Could not find ExtRef for quality mapping: ${qualExtRef}`
+            );
+          }
+
+          const cbName = newCb.getAttribute('name')!;
+          const srcLDInst = newCb.closest('LDevice')?.getAttribute('inst');
+          const srcPrefix =
+            newCb.closest('LN0, LN')?.getAttribute('prefix') ?? '';
+          const srcLNClass = newCb.closest('LN0, LN')?.getAttribute('lnClass');
+          const srcLNInst = newCb.closest('LN0, LN')?.getAttribute('inst');
+
+          if (qualExtRef) {
+            selSupervision = {
+              element: qualExtRef,
+              attributes: {
+                iedName: newFromIed,
+                srcCBName: cbName,
+                srcLDInst,
+                ...(srcPrefix && { srcPrefix }),
+                srcLNClass,
+                ...(srcLNInst && { srcLNInst })
+              }
+            };
+          }
+        }
+
         subscriptionsCount += cbSubscriptions.length;
+        // it is kind of a supervision
+        supervisionsCount += 1;
+
         this.dispatchEvent(
-          newEditEvent(
-            subscribe(cbSubscriptions, {
+          newEditEvent([
+            ...(selSupervision ? [selSupervision] : []),
+            ...subscribe(cbSubscriptions, {
               force: true,
               ignoreSupervision: true,
               checkOnlyBType: true
             })
-          )
+          ])
         );
 
         const newSupervisionId = newIedIdentity(newToIed, cb.supervision);
@@ -1192,6 +1231,9 @@ export default class Stencil extends LitElement {
       const mappedCb = mappingData.find(
         cb => cb.id === cbName && cb.from === row.fromIed && cb.to === toIed
       );
+
+      const selSupervisionMapping = mappedCb?.selSupervision;
+
       return html`<td
         class="${mappedCb ? 'mapcell' : ''} ${row.fromIed === toIed
           ? 'diagonal'
@@ -1236,6 +1278,12 @@ export default class Stencil extends LitElement {
               ${mappedCb.supervision === 'None'
                 ? 'None'
                 : mappedCb.supervision.substring(2)}
+            </p>`
+          : nothing}
+        <!-- SEL supervision -->
+        ${mappedCb && selSupervisionMapping && this.showSupervisions
+          ? html`<p id="supervisionInfoSEL">
+              ${selSupervisionMapping ? selSupervisionMapping.name : nothing}
             </p>`
           : nothing}
       </td>`;
@@ -2210,7 +2258,8 @@ export default class Stencil extends LitElement {
       padding-left: 20px;
     }
 
-    #supervisionInfo {
+    #supervisionInfo,
+    #supervisionInfoSEL {
       font-size: 10px;
     }
 
