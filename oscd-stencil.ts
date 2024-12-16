@@ -475,6 +475,10 @@ export default class Stencil extends LitElement {
     this.storeSettings();
 
     this.changeStencilUI.onchange = null;
+    this.selectedApplicationUI.classList.remove('selected');
+    this.selectedApplication = null;
+    this.selectedAppVersion = undefined;
+    this.resetApplyStencil();
   }
 
   // eslint-disable-next-line class-methods-use-this
