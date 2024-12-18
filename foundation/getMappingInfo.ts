@@ -80,10 +80,8 @@ export function matchSrcAttributes(extRef: Element, control: Element): boolean {
   );
 }
 
-function isSELMessageQuality(extRef: Element, toIedName: string) {
-  const toIed = extRef.ownerDocument.querySelector(
-    `:root > IED[name="${toIedName}"]`
-  );
+function isSELMessageQuality(extRef: Element) {
+  const toIed = extRef.closest('IED')!;
   const isSEL = toIed && toIed.getAttribute('manufacturer') === 'SEL';
   const hasNoServiceType =
     !extRef.getAttribute('serviceType') ||
@@ -107,7 +105,7 @@ function findSELMessageQuality(
     extRef =>
       matchSrcAttributes(extRef, control) &&
       !isSubscribed(extRef) &&
-      isSELMessageQuality(extRef, fromIedName)
+      isSELMessageQuality(extRef)
   );
 }
 
@@ -174,10 +172,7 @@ export function getMappingInfo(
       .filter(extRef => {
         const iedNameMatch =
           extRef.closest('IED')!.getAttribute('name') === toName;
-        return (
-          iedNameMatch &&
-          (isSubscribed(extRef) || isSELMessageQuality(extRef, toName))
-        );
+        return iedNameMatch && isSubscribed(extRef);
       })
       .map(extRef => ({
         FCDA: identityNoIed(getFCDA(cb, extRef) ?? null, fromName),
