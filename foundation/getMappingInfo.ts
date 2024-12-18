@@ -114,7 +114,11 @@ function findSELMessageQuality(
 function getFCDA(cb: Element, extRef: Element): Element | undefined {
   const dsName = cb.getAttribute('datSet');
   const ds = cb.closest('LN0')!.querySelector(`DataSet[name="${dsName}"]`);
-  return Array.from(ds!.querySelectorAll('FCDA')).find((fcda: Element) =>
+  
+  const fcdas = ds?.querySelectorAll('FCDA')
+  if (!fcdas) return undefined
+
+  return Array.from(fcdas).find((fcda: Element) =>
     matchDataAttributes(extRef, fcda)
   );
 }
