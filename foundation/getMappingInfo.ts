@@ -93,6 +93,8 @@ function findSELMessageQuality(
   control: Element,
   toIedName: string
 ): Element | undefined {
+  if (control.tagName !== 'GSEControl') return undefined;
+
   const doc = control.ownerDocument;
   const fromIedName = control.closest('IED')!.getAttribute('name')!;
 
